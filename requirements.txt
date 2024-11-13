@@ -1,0 +1,6 @@
+flask
+flask-migrate
+faker
+flask-sqlalchemy
+flask-restful
+sqlalchemy-serializer
