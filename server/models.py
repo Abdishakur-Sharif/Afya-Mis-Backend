@@ -102,7 +102,7 @@ class Appointment(db.Model, SerializerMixin):  # Table: 'appointments'
     patient = db.relationship('Patient', back_populates='appointments')
     doctor = db.relationship('Doctor', back_populates='appointments')
 
-    serialize_rules = ('-patient.appointments', '-doctor.appointments')
+    serialize_rules = ('-patient.appointments', '-doctor.appointments', '-patient.consultations', '-doctor.consultations', '-doctor.diagnosis')
 
 
 # Test Model

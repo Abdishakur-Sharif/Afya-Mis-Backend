@@ -148,21 +148,27 @@ def create_medicines():
     print("Medicines created successfully.")
 
 # Helper function to create appointments
+# Helper function to create appointments
 def create_appointments():
+    # Delete all existing appointments before creating new ones
+    Appointment.query.delete()  # This removes all existing appointment data
+
     patients = Patient.query.all()
     doctors = Doctor.query.all()
 
-    for i in range(10):  # Create 10 appointments
+    for i in range(5):  # Create 5 appointments
+        appointment_date = fake.date_this_year()  # Generate the date once
+
         appointment = Appointment(
             patient_id=random.choice(patients).id,
             doctor_id=random.choice(doctors).id,
-            appointment_time=fake.date_this_year(),
-            appointment_date=fake.date_this_year()
+            appointment_date=appointment_date,  # Use the same date for both
+            appointment_time=appointment_date,  # Ensure time and date match
         )
         db.session.add(appointment)
+    
     db.session.commit()
-    print("Appointments created successfully.")
-
+    print("5 Appointments created successfully.")
 # Helper function to create consultations
 
 def create_consultations():

@@ -89,5 +89,45 @@ def delete_test(id):
 
 api.add_resource(Patients, '/patients', '/patients/<int:patient_id>')  # Route with optional patient_id
 
+
+class Appointments(Resource):
+
+    def get(self):
+        # Fetch all appointments from the database, including related patient and doctor details
+        appointments = Appointment.query.all()
+
+        # Prepare the response structure
+        response_dict_list = []
+        for appointment in appointments:
+            # Construct the response with full patient and doctor details
+            appointment_dict = {
+                "appointment_date": appointment.appointment_date,
+                "appointment_time": appointment.appointment_time,
+                "patient": {
+                    "id": appointment.patient.id,  # Patient ID
+                    "name": appointment.patient.name,
+                    "phone_number": appointment.patient.phone_number,
+                    "gender": appointment.patient.gender,
+                    "email": appointment.patient.email,
+                },
+                "doctor": {
+                    "id": appointment.doctor.id,  # Doctor ID
+                    "name": appointment.doctor.name,
+                    "phone_number": appointment.doctor.phone_number,
+                    "email": appointment.doctor.email,
+                },
+            }
+            response_dict_list.append(appointment_dict)
+
+        # Return the simplified response with a 200 status
+        response = make_response(response_dict_list, 200)
+        return response
+
+    
+    
+
+# Add the Appointment resource to the API with the route '/appointments'
+api.add_resource(Appointments, '/appointments')
+
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
