@@ -95,30 +95,42 @@ class Appointments(Resource):
         # Fetch all appointments from the database
         appointments = Appointment.query.all()
 
-        response_dict_list = [
-            {
-                "id": appointment.id,  
+        # Prepare the response in the desired format
+        response_dict_list = []
+        
+        for appointment in appointments:
+            # Safely access the patient and doctor attributes
+            patient = appointment.patient
+            doctor = appointment.doctor
+
+            response_dict = {
+                "id": appointment.id,
                 "appointment_date": appointment.appointment_date,
                 "appointment_time": appointment.appointment_time,
                 "patient": {
-                    "id": appointment.patient.id,  
-                    "name": appointment.patient.name,
-                    "phone_number": appointment.patient.phone_number,
-                    "gender": appointment.patient.gender,
-                    "email": appointment.patient.email,
+                    "id": patient.id if patient else None,  # Safely handle None patient
+                    "name": patient.name if patient else None,
+                    "phone_number": patient.phone_number if patient else None,
+                    "gender": patient.gender if patient else None,
+                    "email": patient.email if patient else None,
                 },
                 "doctor": {
-                    "id": appointment.doctor.id,  
-                    "name": appointment.doctor.name,
-                    "phone_number": appointment.doctor.phone_number,
-                    "email": appointment.doctor.email,
+                    "id": doctor.id if doctor else None,  # Safely handle None doctor
+                    "name": doctor.name if doctor else None,
+                    "phone_number": doctor.phone_number if doctor else None,
+                    "email": doctor.email if doctor else None,
                 },
             }
-            for appointment in appointments
-        ]
-        response = make_response(response_dict_list, 200)
-        return response
-    
+            
+            # Append the appointment response to the list
+            response_dict_list.append(response_dict)
+
+        # Return the response as JSON with a 200 status code
+        return make_response(jsonify(response_dict_list), 200)
+
+
+
+# Add the resource to the API
 api.add_resource(Appointments, '/appointments')
 
 class AppointmentByID(Resource):
