@@ -147,6 +147,8 @@ class Appointments(Resource):
 
 api.add_resource(Appointments, '/appointments')
 
+
+
 class AppointmentByID(Resource):
 
     def get(self, id):
@@ -181,8 +183,32 @@ class AppointmentByID(Resource):
 
         response = make_response(appointment_dict, 200)
         return response
-    
+
+    def delete(self, id):
+        # Find the appointment by ID
+        appointment = Appointment.query.filter_by(id=id).first()
+
+        # Check if the appointment exists
+        if appointment is None:
+            response_dict = {
+                "error": "Appointment not found"
+            }
+            response = make_response(response_dict, 404)
+            return response
+
+        # Delete the appointment
+        db.session.delete(appointment)
+        db.session.commit()
+
+        response_dict = {
+            "message": f"Appointment with ID {id} has been deleted successfully."
+        }
+        response = make_response(response_dict, 200)
+        return response
+
+# Adding the resource to the API
 api.add_resource(AppointmentByID, '/appointments/<int:id>')
+
 
 
 if __name__ == '__main__':
