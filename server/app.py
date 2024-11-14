@@ -128,9 +128,23 @@ class Appointments(Resource):
         # Return the response as JSON with a 200 status code
         return make_response(jsonify(response_dict_list), 200)
 
+    def post(self):
+        # Get the data from the request body as JSON
+        data = request.get_json()
 
+        # Check if the required fields are in the request
+        if not all(k in data for k in ("patient_id", "doctor_id", "appointment_date", "appointment_time")):
+            return {"error": "Missing required fields"}, 400  # Bad request
 
-# Add the resource to the API
+        response_data = {
+            "patient_id": data["patient_id"],
+            "doctor_id": data["doctor_id"],
+            "appointment_date": data["appointment_date"],
+            "appointment_time": data["appointment_time"]
+        }
+
+        return response_data, 201  
+
 api.add_resource(Appointments, '/appointments')
 
 class AppointmentByID(Resource):
@@ -167,7 +181,7 @@ class AppointmentByID(Resource):
 
         response = make_response(appointment_dict, 200)
         return response
-
+    
 api.add_resource(AppointmentByID, '/appointments/<int:id>')
 
 
