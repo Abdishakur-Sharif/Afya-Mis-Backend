@@ -1,2 +1,9 @@
 [packages]
 requests = "*"
+flask = "*"
+sqlalchemy = "*"
+faker = "*"
+flask-restful = "*"
+flask-cors = "*"
+flask-migrate = "*"
+sqlalchemy-serializer = "*"
