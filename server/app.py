@@ -95,59 +95,72 @@ class Appointments(Resource):
         # Fetch all appointments from the database
         appointments = Appointment.query.all()
 
-        # Prepare the response in the desired format
         response_dict_list = []
-        
+
         for appointment in appointments:
-            # Safely access the patient and doctor attributes
             patient = appointment.patient
             doctor = appointment.doctor
 
+            # Convert the time to 12-hour AM/PM format
+            if appointment.appointment_time:
+                formatted_time = appointment.appointment_time.strftime("%I:%M %p")  # 12-hour AM/PM
+            else:
+                formatted_time = None
+
+            # Prepare the appointment data for the response
             response_dict = {
                 "id": appointment.id,
-                "appointment_date": appointment.appointment_date,
-                "appointment_time": appointment.appointment_time,
+                "appointment_date": appointment.appointment_date.strftime("%Y-%m-%d"),
+                "appointment_time": formatted_time,  # Use the formatted time
                 "patient": {
-                    "id": patient.id if patient else None,  # Safely handle None patient
+                    "id": patient.id if patient else None,
                     "name": patient.name if patient else None,
                     "phone_number": patient.phone_number if patient else None,
                     "gender": patient.gender if patient else None,
                     "email": patient.email if patient else None,
                 },
                 "doctor": {
-                    "id": doctor.id if doctor else None,  # Safely handle None doctor
+                    "id": doctor.id if doctor else None,
                     "name": doctor.name if doctor else None,
                     "phone_number": doctor.phone_number if doctor else None,
                     "email": doctor.email if doctor else None,
                 },
             }
-            
-            # Append the appointment response to the list
+
             response_dict_list.append(response_dict)
 
-        # Return the response as JSON with a 200 status code
         return make_response(jsonify(response_dict_list), 200)
 
     def post(self):
-        # Get the data from the request body as JSON
         data = request.get_json()
 
-        # Check if the required fields are in the request
         if not all(k in data for k in ("patient_id", "doctor_id", "appointment_date", "appointment_time")):
-            return {"error": "Missing required fields"}, 400  # Bad request
+            return {"error": "Missing required fields"}, 400
+
+        appointment_date = datetime.strptime(data["appointment_date"], "%Y-%m-%d").date()
+        appointment_time = datetime.strptime(data["appointment_time"], "%H:%M").time()
+
+        new_appointment = Appointment(
+            patient_id=data["patient_id"],
+            doctor_id=data["doctor_id"],
+            appointment_date=appointment_date,
+            appointment_time=appointment_time
+        )
+
+        db.session.add(new_appointment)
+        db.session.commit()
 
         response_data = {
-            "patient_id": data["patient_id"],
-            "doctor_id": data["doctor_id"],
-            "appointment_date": data["appointment_date"],
-            "appointment_time": data["appointment_time"]
+            "id": new_appointment.id,
+            "patient_id": new_appointment.patient_id,
+            "doctor_id": new_appointment.doctor_id,
+            "appointment_date": new_appointment.appointment_date.strftime("%Y-%m-%d"),
+            "appointment_time": new_appointment.appointment_time.strftime("%H:%M")
         }
 
-        return response_data, 201  
-
+        return response_data, 201
+    
 api.add_resource(Appointments, '/appointments')
-
-
 
 class AppointmentByID(Resource):
 
@@ -205,10 +218,46 @@ class AppointmentByID(Resource):
         }
         response = make_response(response_dict, 200)
         return response
+    def patch(self, id):
+        # Find the appointment by ID
+        appointment = Appointment.query.filter_by(id=id).first()
 
-# Adding the resource to the API
+        # Check if the appointment exists
+        if appointment is None:
+            response_dict = {
+                "error": "Appointment not found"
+            }
+            response = make_response(response_dict, 404)
+            return response
+
+        # Get the data from the request body as JSON
+        data = request.get_json()
+
+        # Update the appointment fields (with datetime conversion if needed)
+        for key, value in data.items():
+            if hasattr(appointment, key):
+                # If it's a date or time field, convert it to a datetime object
+                if key in ['appointment_date', 'appointment_time']:
+                    # Convert string to datetime (ensure format 'YYYY-MM-DD HH:MM:SS')
+                    datetime_value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+                    setattr(appointment, key, datetime_value)
+                else:
+                    # For other fields, directly assign the value
+                    setattr(appointment, key, value)
+
+        # Commit the changes (no error handling for commit)
+        db.session.commit()
+
+        # Return success message on successful update
+        response_dict = {
+            "message": f"Appointment with ID {id} has been updated successfully."
+        }
+        response = make_response(response_dict, 200)
+        return response
+
+    
+
 api.add_resource(AppointmentByID, '/appointments/<int:id>')
-
 
 
 if __name__ == '__main__':

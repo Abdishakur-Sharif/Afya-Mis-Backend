@@ -157,20 +157,36 @@ def create_appointments():
     doctors = Doctor.query.all()
 
     for i in range(5):  # Create 5 appointments
-        appointment_date = fake.date_this_year()  # Generate the date once
+        # Generate the date once for the appointment (without the time part)
+        appointment_date = fake.date_this_year()  # Generates only the date (no time)
+        
+        # Generate a random time string (in 24-hour format, e.g., '16:30:53')
+        appointment_time_str_24hr = fake.time()  # Format like '16:30:53'
 
+        # Strip the seconds from the time string to get 'HH:MM'
+        appointment_time_str_24hr = appointment_time_str_24hr[:5]  # Truncate to 'HH:MM'
+
+        # Convert the 24-hour time string to 12-hour format with AM/PM
+        appointment_time_12hr = datetime.strptime(appointment_time_str_24hr, '%H:%M').strftime('%I:%M %p')
+
+        # Convert the time string in 12-hour format to a Python time object
+        # Using '%I:%M %p' (AM/PM) ensures it correctly handles times in both AM and PM
+        appointment_time = datetime.strptime(appointment_time_12hr, '%I:%M %p').time()
+
+        # Create the appointment object with the new date and time
         appointment = Appointment(
             patient_id=random.choice(patients).id,
             doctor_id=random.choice(doctors).id,
-            appointment_date=appointment_date,  # Use the same date for both
-            appointment_time=appointment_date,  # Ensure time and date match
+            appointment_date=appointment_date,  # This is a 'date' type field
+            appointment_time=appointment_time,  # This is a 'time' type field
         )
+        
+        # Add the appointment to the session
         db.session.add(appointment)
     
+    # Commit the changes to the database
     db.session.commit()
     print("5 Appointments created successfully.")
-# Helper function to create consultations
-
 def create_consultations():
     patients = Patient.query.all()
     doctors = Doctor.query.all()
