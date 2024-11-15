@@ -1,3 +1,4 @@
+from models import db, Doctor,  Diagnosis,  LabTech, Patient, Payment, Consultation,ConsultationNotes ,Prescription, Medicine, Test, TestType, Appointment
 from flask import Flask, request, make_response, jsonify
 from flask_restful import Api, Resource
 from flask_migrate import Migrate
@@ -24,6 +25,130 @@ class Index(Resource):
         return make_response(response_dict, 200)
 
 api.add_resource(Index, '/')
+
+class Consultations(Resource):
+    def get(self, consultation_id=None):
+        if consultation_id:
+            # Fetch a single consultation by ID
+            consultation = Consultation.query.filter_by(id=consultation_id).first()
+            
+            # If no consultation is found, return a 404 error
+            if not consultation:
+                return make_response({"message": f"Consultation with ID {consultation_id} not found"}, 404)
+            
+            # Return only the specified fields 
+            return make_response(consultation.to_dict(), 200)
+        
+        # Fetch all consultations if no consultation_id is provided
+        consultations = Consultation.query.all()
+        
+        if not consultations:
+            return make_response({"message": "No consultations found"}, 404)
+        
+        # Serialize the consultation data into a list of dictionaries
+        consultation_data = [consultation.to_dict() for consultation in consultations]
+        
+        # Return the list of consultations as a JSON response
+        return make_response(jsonify(consultation_data),  200)
+     
+
+    def post(self):
+        # Create a new consultation
+        data = request.get_json()
+
+        # Validate input data
+        if not data.get('patient_id') or not data.get('doctor_id') or not data.get('consultation_date') :
+            return make_response({"message": "Missing required fields (patient_id, doctor_id, consultation_date)"}, 400)
+
+        # Create a new Consultation object
+        new_consultation = Consultation(
+            patient_id=data['patient_id'],
+            doctor_id=data['doctor_id'],
+            consultation_date=datetime.fromisoformat(data['consultation_date']),
+        )
+
+        try:
+            db.session.add(new_consultation)
+            db.session.commit()
+            return make_response({"message": "Consultation created", "id": new_consultation.id}, 201)
+        except Exception as e:
+            db.session.rollback()
+            return make_response({"message": f"Error creating consultation: {str(e)}"}, 500)
+
+    def delete(self, consultation_id):
+        # Delete a consultation by ID
+        consultation = Consultation.query.filter_by(id=consultation_id).first()
+        
+        if not consultation:
+            return make_response({"message": f"Consultation with ID {consultation_id} not found"}, 404)
+
+        try:
+            db.session.delete(consultation)
+            db.session.commit()
+            return make_response({"message": f"Consultation with ID {consultation_id} deleted"}, 200)
+        except Exception as e:
+            db.session.rollback()
+            return make_response({"message": f"Error deleting consultation: {str(e)}"}, 500)   
+
+class Notes(Resource):
+    def get(self, consultationNotes_id=None):
+        if consultationNotes_id:
+            # Fetch a single note by ID
+            note = ConsultationNotes.query.filter_by(id=consultationNotes_id).first()
+            if not note:
+                return make_response({"message": f"Notes with ID {consultationNotes_id} not found"}, 404)
+            
+            # Return specified fields
+            return make_response(note.to_dict(), 200)
+
+        # Fetch all notes
+        notes = ConsultationNotes.query.all()
+        if not notes:
+            return make_response({"message": "No notes found"}, 404)
+        
+        # Serialize and return all notes
+        notes_data = [note.to_dict() for note in notes]
+        return make_response(notes_data, 200)
+    
+    def post(self):
+        # Create a new note
+        data = request.get_json()
+        print(f"Data: {data}") 
+        # Validate input data
+        if not data.get('notes') or not data.get('patient_id') or not data.get('consultation_id') or not data.get('created_at'):
+            return make_response({"message": "Missing required fields (notes, patient_id, consultation_id, created_at)"}, 400)
+
+        # Create a new ConsultationNotes object
+        new_note = ConsultationNotes(
+            notes=data['notes'],
+            patient_id=data['patient_id'],
+            consultation_id=data['consultation_id'],
+            created_at=datetime.now(),
+        )
+
+        try:
+            db.session.add(new_note)
+            db.session.commit()
+            return make_response({"message": "Note created", "id": new_note.id}, 201)
+        except Exception as e:
+            db.session.rollback()
+            return make_response({"message": f"Error creating note: {str(e)}"}, 500)
+        
+    def delete(self, consultationNotes_id):
+        #delete a note by id
+        note = ConsultationNotes.query.filter_by(id=consultationNotes_id).first()
+        if not note:
+            return make_response({"message": f"Note with ID {consultationNotes_id} not found"}, 404)
+        
+        try:
+            db.session.delete(note)
+            db.session.commit()
+            return make_response({"message": f"Note with ID {consultationNotes_id} deleted"}, 200)
+        except Exception as e:
+            db.session.rollback()
+            return make_response({"message": f"Error deleting note: {str(e)}"}, 500)
+api.add_resource(Consultations, '/consultations', '/consultations/<int:consultation_id>')  
+api.add_resource(Notes, '/consultation_notes', '/consultation_notes/<int:consultationNotes_id>')
 
 # Patients resource for CRUD operations
 class Patients(Resource):
