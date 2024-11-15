@@ -90,28 +90,24 @@ def delete_test(id):
 api.add_resource(Patients, '/patients', '/patients/<int:patient_id>')  # Route with optional patient_id
 
 class Appointments(Resource):
-
     def get(self):
-        # Fetch all appointments from the database
         appointments = Appointment.query.all()
-
         response_dict_list = []
 
         for appointment in appointments:
+            # Patient and Doctor data extraction (using inline conditionals to reduce repetition)
             patient = appointment.patient
             doctor = appointment.doctor
 
-            # Convert the time to 12-hour AM/PM format
-            if appointment.appointment_time:
-                formatted_time = appointment.appointment_time.strftime("%I:%M %p")  # 12-hour AM/PM
-            else:
-                formatted_time = None
+            # Format appointment date and time
+            formatted_date = appointment.appointment_date.strftime("%Y-%m-%d") if appointment.appointment_date else None
+            formatted_time = appointment.appointment_time.strftime("%I:%M %p") if appointment.appointment_time else None
 
-            # Prepare the appointment data for the response
+            # Construct the response dictionary for each appointment
             response_dict = {
                 "id": appointment.id,
-                "appointment_date": appointment.appointment_date.strftime("%Y-%m-%d"),
-                "appointment_time": formatted_time,  # Use the formatted time
+                "appointment_date": formatted_date,
+                "appointment_time": formatted_time,
                 "patient": {
                     "id": patient.id if patient else None,
                     "name": patient.name if patient else None,
@@ -134,12 +130,15 @@ class Appointments(Resource):
     def post(self):
         data = request.get_json()
 
+        # Validate required fields
         if not all(k in data for k in ("patient_id", "doctor_id", "appointment_date", "appointment_time")):
             return {"error": "Missing required fields"}, 400
 
+        # Convert appointment date and time from string to datetime objects
         appointment_date = datetime.strptime(data["appointment_date"], "%Y-%m-%d").date()
         appointment_time = datetime.strptime(data["appointment_time"], "%H:%M").time()
 
+        # Create and add the new appointment
         new_appointment = Appointment(
             patient_id=data["patient_id"],
             doctor_id=data["doctor_id"],
@@ -150,6 +149,7 @@ class Appointments(Resource):
         db.session.add(new_appointment)
         db.session.commit()
 
+        # Prepare response data
         response_data = {
             "id": new_appointment.id,
             "patient_id": new_appointment.patient_id,
@@ -159,103 +159,80 @@ class Appointments(Resource):
         }
 
         return response_data, 201
-    
+
 api.add_resource(Appointments, '/appointments')
 
 class AppointmentByID(Resource):
-
     def get(self, id):
         appointment = Appointment.query.filter_by(id=id).first()
 
-        # Check if appointment exists
         if appointment is None:
-            response_dict = {
-                "error": "Appointment not found"
-            }
-            response = make_response(response_dict, 404)
-            return response
+            return make_response(jsonify({"error": "Appointment not found"}), 404)
 
+        # Format appointment date and time
+        formatted_date = appointment.appointment_date.strftime("%Y-%m-%d") if appointment.appointment_date else None
+        formatted_time = appointment.appointment_time.strftime("%I:%M %p") if appointment.appointment_time else None
+
+        # Patient and Doctor data extraction
+        patient = appointment.patient
+        doctor = appointment.doctor
+
+        # Construct the appointment response
         appointment_dict = {
             "id": appointment.id,
-            "appointment_date": appointment.appointment_date,
-            "appointment_time": appointment.appointment_time,
+            "appointment_date": formatted_date,
+            "appointment_time": formatted_time,
             "patient": {
-                "id": appointment.patient.id,
-                "name": appointment.patient.name,
-                "phone_number": appointment.patient.phone_number,
-                "gender": appointment.patient.gender,
-                "email": appointment.patient.email,
+                "id": patient.id if patient else None,
+                "name": patient.name if patient else None,
+                "phone_number": patient.phone_number if patient else None,
+                "gender": patient.gender if patient else None,
+                "email": patient.email if patient else None,
             },
             "doctor": {
-                "id": appointment.doctor.id,
-                "name": appointment.doctor.name,
-                "phone_number": appointment.doctor.phone_number,
-                "email": appointment.doctor.email,
+                "id": doctor.id if doctor else None,
+                "name": doctor.name if doctor else None,
+                "phone_number": doctor.phone_number if doctor else None,
+                "email": doctor.email if doctor else None,
             },
         }
 
-        response = make_response(appointment_dict, 200)
-        return response
+        return make_response(jsonify(appointment_dict), 200)
 
     def delete(self, id):
-        # Find the appointment by ID
         appointment = Appointment.query.filter_by(id=id).first()
 
-        # Check if the appointment exists
         if appointment is None:
-            response_dict = {
-                "error": "Appointment not found"
-            }
-            response = make_response(response_dict, 404)
-            return response
+            return make_response(jsonify({"error": "Appointment not found"}), 404)
 
-        # Delete the appointment
+        # Delete the appointment from the database
         db.session.delete(appointment)
         db.session.commit()
 
-        response_dict = {
-            "message": f"Appointment with ID {id} has been deleted successfully."
-        }
-        response = make_response(response_dict, 200)
-        return response
+        return make_response(jsonify({"message": f"Appointment with ID {id} has been deleted successfully."}), 200)
+
     def patch(self, id):
-        # Find the appointment by ID
         appointment = Appointment.query.filter_by(id=id).first()
 
-        # Check if the appointment exists
         if appointment is None:
-            response_dict = {
-                "error": "Appointment not found"
-            }
-            response = make_response(response_dict, 404)
-            return response
+            return make_response(jsonify({"error": "Appointment not found"}), 404)
 
-        # Get the data from the request body as JSON
         data = request.get_json()
 
-        # Update the appointment fields (with datetime conversion if needed)
+        # Update fields in the appointment based on the provided data
         for key, value in data.items():
             if hasattr(appointment, key):
-                # If it's a date or time field, convert it to a datetime object
-                if key in ['appointment_date', 'appointment_time']:
-                    # Convert string to datetime (ensure format 'YYYY-MM-DD HH:MM:SS')
-                    datetime_value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
-                    setattr(appointment, key, datetime_value)
+                if key == 'appointment_date':
+                    appointment.appointment_date = datetime.strptime(value, '%Y-%m-%d').date()
+                elif key == 'appointment_time':
+                    appointment.appointment_time = datetime.strptime(value, '%H:%M').time()
                 else:
-                    # For other fields, directly assign the value
                     setattr(appointment, key, value)
 
-        # Commit the changes (no error handling for commit)
+        # Commit the changes to the database
         db.session.commit()
 
-        # Return success message on successful update
-        response_dict = {
-            "message": f"Appointment with ID {id} has been updated successfully."
-        }
-        response = make_response(response_dict, 200)
-        return response
-
-    
+        return make_response(jsonify({"message": f"Appointment with ID {id} has been updated successfully."}), 200)
 
 api.add_resource(AppointmentByID, '/appointments/<int:id>')
 
