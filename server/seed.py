@@ -17,12 +17,26 @@ def drop_all_tables():
 
 
 # Helper function to create doctors
+specialties = [
+    "Cardiology",
+    "Dermatology",
+    "Neurology",
+    "Pediatrics",
+    "Orthopedics",
+    "Ophthalmology",
+    "Psychiatry",
+    "Radiology",
+    "Gastroenterology",
+    "Endocrinology"
+]
+
 def create_doctors():
     for i in range(10):  # Create 10 doctors
         doctor = Doctor(
             name=fake.name(),
             email=fake.email(),
             phone_number=fake.phone_number(),
+            speciality=random.choice(specialties)  # Randomly assign a specialty
         )
         db.session.add(doctor)
     db.session.commit()
@@ -55,8 +69,6 @@ def create_lab_techs():
     print("LabTechs created successfully.")
 
 # Helper function to create patients
-from datetime import datetime
-import random
 
 def create_patients():
     conditions = [
@@ -329,7 +341,7 @@ def seed_data():
     create_doctors()
     create_lab_techs()
     create_patients()
-    create_medicines()  # New function to add medicines
+    create_medicines()  
     create_appointments()
     create_consultations()
     create_diagnoses()
@@ -337,6 +349,7 @@ def seed_data():
     create_payments()
     create_test_types()
     create_tests()
+    create_staff()
 
 if __name__ == "__main__":
     with app.app_context():

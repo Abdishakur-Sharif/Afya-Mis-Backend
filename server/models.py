@@ -23,14 +23,15 @@ class Doctor(db.Model, SerializerMixin):  # Table: 'doctors'
     name = db.Column(db.String, nullable=False)
     email = db.Column(db.String, nullable=False, unique=True)
     phone_number = db.Column(db.String, nullable=False, unique=True)
-
+    
     # Relationships
     appointments = db.relationship('Appointment', back_populates='doctor')
     diagnosis = db.relationship('Diagnosis', back_populates='doctor')
     prescriptions = db.relationship('Prescription', back_populates='doctor')
     consultations = db.relationship('Consultation', back_populates='doctor')
+    tests = db.relationship('Test', back_populates='doctor')
 
-    serialize_rules = ('-appointments.doctor', '-diagnosis.doctor', '-prescriptions.doctor', '-consultations.doctor')
+    serialize_rules = ('-appointments.doctor', '-diagnosis.doctor', '-tests.doctor', '-prescriptions.doctor', '-consultations.doctor')
 
 
 # Staff Model
@@ -57,7 +58,7 @@ class LabTech(db.Model, SerializerMixin):  # Table: 'lab_techs'
     # Relationships
     tests = db.relationship('Test', back_populates='lab_tech')
 
-    serialize_rules = ( '-tests.lab_tech')
+    serialize_only = ('id', 'name', 'phone_number', 'email',)
 
 
 # Patient Model
@@ -122,8 +123,9 @@ class Test(db.Model, SerializerMixin):  # Table: 'tests'
     patient = db.relationship('Patient', back_populates='tests')
     lab_tech = db.relationship('LabTech', back_populates='tests')
     test_types = db.relationship('TestType', back_populates='tests')
+    doctor = db.relationship('Doctor', back_populates='tests')
 
-    serialize_only = ('id', 'patient_id', 'doctor_id', 'lab_tech_id', 'test_types_id', 'status', 'created_at')
+    serialize_only = ('id', 'patient.name', 'doctor.name', 'lab_tech.name', 'test_types.test_name', 'status', 'created_at')
 
 
 # TestTypes Model
@@ -138,7 +140,7 @@ class TestType(db.Model, SerializerMixin):  # Table: 'test_types'
     # Relationships
     tests = db.relationship('Test', back_populates='test_types')
 
-    serialize_only = ('id', 'test_name', 'description', 'price', 'tests.id')
+    serialize_only = ('id', 'test_name', 'description', 'price')
 
 
 # Consultation Model
