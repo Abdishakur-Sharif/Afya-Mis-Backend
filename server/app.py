@@ -36,57 +36,6 @@ class Index(Resource):
     
 api.add_resource(Index, '/')
 
-# Add a route for patients
-class Patients(Resource):
-    def get(self, patient_id=None):
-        if patient_id:
-            # Fetch a single patient by ID
-            patient = Patient.query.get(patient_id)
-            
-            # If no patient is found, return a 404 error
-            if not patient:
-                return make_response({"message": f"Patient with ID {patient_id} not found"}, 404)
-            
-            # Return only the specified fields
-            patient_data = {
-                "id": patient.id,
-                "name": patient.name,
-                "gender": patient.gender,
-                "address": patient.address,
-                "phone_number": patient.phone_number,
-                "medical_history": patient.medical_history,
-                "date_of_birth": patient.date_of_birth.isoformat()  # Ensure proper date format
-            }
-            
-            return make_response(patient_data, 200)
-        
-        # Fetch all patients if no `patient_id` is provided
-        patients = Patient.query.all()
-        
-        if not patients:
-            return make_response({"message": "No patients found"}, 404)
-        
-        # Serialize the patient data into a list of dictionaries
-        patient_data = [{
-            "id": patient.id,
-            "name": patient.name,
-            "gender": patient.gender,
-            "address": patient.address,
-            "phone_number": patient.phone_number,
-            "medical_history": patient.medical_history,
-            "date_of_birth": patient.date_of_birth.isoformat()  # Ensure proper date format
-        } for patient in patients]
-        
-        # Return the list of patients as a JSON response
-        return make_response(patient_data, 200)
-
-
-@app.route('/tests/<int:id>', methods=['DELETE'])
-def delete_test(id):
-    test = Test.query.get(id)
-    if test is None:
-        abort(404, description="Test not found")
-
 class Consultations(Resource):
     def get(self, consultation_id=None):
         if consultation_id:
@@ -208,8 +157,6 @@ class Notes(Resource):
         except Exception as e:
             db.session.rollback()
             return make_response({"message": f"Error deleting note: {str(e)}"}, 500)
-
-api.add_resource(Patients, '/patients', '/patients/<int:patient_id>')
 api.add_resource(Consultations, '/consultations', '/consultations/<int:consultation_id>')  
 api.add_resource(Notes, '/consultation_notes', '/consultation_notes/<int:consultationNotes_id>')
 
