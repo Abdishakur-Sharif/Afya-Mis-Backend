@@ -264,25 +264,41 @@ def create_diagnoses():
 
 # Helper function to create prescriptions
 def create_prescriptions():
-    medicines = Medicine.query.all()
-    appointments = Appointment.query.all()
-    patients = Patient.query.all()
-    doctors = Doctor.query.all()
+    # Delete all existing prescriptions before creating new ones
+    Prescription.query.delete()
 
-    for i in range(5):  # Create 5 prescriptions
-        prescription = Prescription(
+    # Fetch all required data from the database
+    medicines, appointments, patients, doctors = Medicine.query.all(), Appointment.query.all(), Patient.query.all(), Doctor.query.all()
+
+    # Ensure all required data is present
+    if not all([medicines, appointments, patients, doctors]):
+        print("Insufficient data in one or more tables.")
+        return
+
+    # Helper function to generate random dosage
+    def get_random_dosage():
+        return f"{random.randint(1, 3)} {random.choice(['mg', 'g', 'ml', 'tablet', 'capsules'])}"
+
+    # Generate 5 prescriptions
+    prescriptions = [
+        Prescription(
             appointment_id=random.choice(appointments).id,
             patient_id=random.choice(patients).id,
             doctor_id=random.choice(doctors).id,
             medicine_id=random.choice(medicines).id,
-            dosage=fake.word(),
+            dosage=get_random_dosage(),
             quantity=random.randint(1, 5),
-            duration=random.randint(1, 10),
+            duration=random.randint(7, 14),
             prescription_date=fake.date_this_year()
         )
-        db.session.add(prescription)
+        for _ in range(5)
+    ]
+
+    # Add all prescriptions to the session and commit
+    db.session.add_all(prescriptions)
     db.session.commit()
-    print("Prescriptions created successfully.")
+
+    print("5 new prescriptions have been created successfully.")
 
 # Helper function to create payments
 def create_payments():

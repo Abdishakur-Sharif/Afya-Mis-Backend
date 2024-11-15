@@ -3,9 +3,8 @@ from flask_migrate import Migrate
 from flask import Flask, request, make_response
 from flask_restful import Api, Resource
 import os
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify
 from datetime import datetime
-
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -35,59 +34,6 @@ class Index(Resource):
         return response
     
 api.add_resource(Index, '/')
-
-# Add a route for patients
-class Patients(Resource):
-    def get(self, patient_id=None):
-        if patient_id:
-            # Fetch a single patient by ID
-            patient = Patient.query.get(patient_id)
-            
-            # If no patient is found, return a 404 error
-            if not patient:
-                return make_response({"message": f"Patient with ID {patient_id} not found"}, 404)
-            
-            # Return only the specified fields
-            patient_data = {
-                "id": patient.id,
-                "name": patient.name,
-                "gender": patient.gender,
-                "address": patient.address,
-                "phone_number": patient.phone_number,
-                "medical_history": patient.medical_history,
-                "date_of_birth": patient.date_of_birth.isoformat()  # Ensure proper date format
-            }
-            
-            return make_response(patient_data, 200)
-        
-        # Fetch all patients if no `patient_id` is provided
-        patients = Patient.query.all()
-        
-        if not patients:
-            return make_response({"message": "No patients found"}, 404)
-        
-        # Serialize the patient data into a list of dictionaries
-        patient_data = [{
-            "id": patient.id,
-            "name": patient.name,
-            "gender": patient.gender,
-            "address": patient.address,
-            "phone_number": patient.phone_number,
-            "medical_history": patient.medical_history,
-            "date_of_birth": patient.date_of_birth.isoformat()  # Ensure proper date format
-        } for patient in patients]
-        
-        # Return the list of patients as a JSON response
-        return make_response(patient_data, 200)
-
-
-@app.route('/tests/<int:id>', methods=['DELETE'])
-def delete_test(id):
-    test = Test.query.get(id)
-    if test is None:
-        abort(404, description="Test not found")
-
-api.add_resource(Patients, '/patients', '/patients/<int:patient_id>')  # Route with optional patient_id
 
 class Appointments(Resource):
     def get(self):
@@ -235,6 +181,100 @@ class AppointmentByID(Resource):
         return make_response(jsonify({"message": f"Appointment with ID {id} has been updated successfully."}), 200)
 
 api.add_resource(AppointmentByID, '/appointments/<int:id>')
+
+# Prescriptions Resource
+class Prescriptions(Resource):
+    def get(self, prescription_id=None):
+        if prescription_id:
+            prescription = db.session.get(Prescription, prescription_id)
+            if not prescription:
+                return make_response({"message": "Prescription not found"}, 404)
+
+            return jsonify({
+                "id": prescription.id,
+                "medication": prescription.medicine.name if prescription.medicine else None,
+                "dosage": prescription.dosage,
+                "prescription_date": prescription.prescription_date.strftime("%Y-%m-%d") if prescription.prescription_date else None,
+                "quantity": prescription.quantity,
+                "duration": prescription.duration,
+                "patient_id": prescription.patient_id,
+                "doctor_id": prescription.doctor_id,
+                "appointment_id": prescription.appointment_id  # Include appointment_id
+            })
+
+        # If no `prescription_id` is provided, fetch all prescriptions
+        prescriptions = Prescription.query.all()
+        return make_response(jsonify([{
+            "id": p.id,
+            "medication": p.medicine.name if p.medicine else None,
+            "dosage": p.dosage,
+            "prescription_date": p.prescription_date.strftime("%Y-%m-%d") if p.prescription_date else None,
+            "quantity": p.quantity,
+            "duration": p.duration,
+            "patient_id": p.patient_id,
+            "doctor_id": p.doctor_id,
+            "appointment_id": p.appointment_id  # Include appointment_id
+        } for p in prescriptions]), 200)
+
+    def post(self):
+        data = request.get_json()
+
+        # Validate required fields in a single line
+        if not all(k in data for k in ("appointment_id", "patient_id", "doctor_id", "medicine_id", "dosage", "prescription_date", "quantity", "duration")):
+            return {"error": "Missing required fields"}, 400
+
+        # Convert prescription_date
+        prescription_date = datetime.strptime(data["prescription_date"], "%Y-%m-%d").date()
+
+        # Inline checks for each entity with a compact error message return
+        appointment = db.session.get(Appointment, data["appointment_id"])
+        if not appointment:
+            return {"error": "Invalid appointment ID"}, 400
+
+        patient = db.session.get(Patient, data["patient_id"])
+        if not patient:
+            return {"error": "Invalid patient ID"}, 400
+
+        doctor = db.session.get(Doctor, data["doctor_id"])
+        if not doctor:
+            return {"error": "Invalid doctor ID"}, 400
+
+        medicine = db.session.get(Medicine, data["medicine_id"])
+        if not medicine:
+            return {"error": "Invalid medicine ID"}, 400
+
+        # Create the new Prescription object in a single step
+        new_prescription = Prescription(
+            appointment_id=data["appointment_id"],
+            patient_id=data["patient_id"],
+            doctor_id=data["doctor_id"],
+            medicine_id=data["medicine_id"],
+            dosage=data["dosage"],
+            prescription_date=prescription_date,
+            quantity=data["quantity"],
+            duration=data["duration"]
+        )
+
+        # Add and commit the new prescription
+        db.session.add(new_prescription)
+        db.session.commit()
+
+        return make_response({"message": "Prescription added", "id": new_prescription.id}, 201)
+
+    def delete(self, prescription_id):
+        prescription = db.session.get(Prescription, prescription_id)
+        if not prescription:
+            return make_response({"message": "Prescription not found"}, 404)
+
+        db.session.delete(prescription)
+        db.session.commit()
+        return make_response({"message": "Prescription deleted"}, 200)
+
+# Add Prescriptions resource to the API
+api.add_resource(Prescriptions, '/prescriptions', '/prescriptions/<int:prescription_id>')
+
+
+
 
 
 if __name__ == '__main__':
