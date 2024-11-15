@@ -17,12 +17,27 @@ def drop_all_tables():
 
 
 # Helper function to create doctors
+
+# List of specialties
+specialties = [
+    "Cardiology",
+    "Dermatology",
+    "Neurology",
+    "Pediatrics",
+    "Orthopedics",
+    "Ophthalmology",
+    "Psychiatry",
+    "Radiology",
+    "Gastroenterology",
+    "Endocrinology"
+]
 def create_doctors():
     for i in range(10):  # Create 10 doctors
         doctor = Doctor(
             name=fake.name(),
             email=fake.email(),
             phone_number=fake.phone_number(),
+            speciality=random.choice(specialties)  # Assign a random specialty
         )
         db.session.add(doctor)
     db.session.commit()
