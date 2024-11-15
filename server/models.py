@@ -23,6 +23,7 @@ class Doctor(db.Model, SerializerMixin):  # Table: 'doctors'
     name = db.Column(db.String, nullable=False)
     email = db.Column(db.String, nullable=False, unique=True)
     phone_number = db.Column(db.String, nullable=False, unique=True)
+    speciality = db.Column(db.String, nullable=False)
 
     # Relationships
     appointments = db.relationship('Appointment', back_populates='doctor')
