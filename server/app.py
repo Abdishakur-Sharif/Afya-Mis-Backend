@@ -3,6 +3,7 @@ from flask_migrate import Migrate
 from flask import Flask, request, make_response, jsonify, abort
 from flask_restful import Api, Resource
 from flask_migrate import Migrate
+from flask_cors import CORS 
 import os
 
 from datetime import datetime
@@ -20,6 +21,8 @@ app.json.compact = False
 migrate = Migrate(app, db)
 db.init_app(app)
 api = Api(app)
+
+CORS(app)
 
 # Index route
 class Index(Resource):
