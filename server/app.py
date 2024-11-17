@@ -5,6 +5,7 @@ from flask_restful import Api, Resource
 import os
 from flask import Flask, request, jsonify, abort
 from datetime import datetime
+# from flask_socketio import SocketIO
 
 
 
@@ -16,6 +17,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.json.compact = False
+# socketio = SocketIO(app)
 
 migrate = Migrate(app, db)
 
@@ -157,6 +159,8 @@ class Notes(Resource):
         except Exception as e:
             db.session.rollback()
             return make_response({"message": f"Error deleting note: {str(e)}"}, 500)
+
+
 api.add_resource(Consultations, '/consultations', '/consultations/<int:consultation_id>')  
 api.add_resource(Notes, '/consultation_notes', '/consultation_notes/<int:consultationNotes_id>')
 

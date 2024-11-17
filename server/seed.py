@@ -1,5 +1,5 @@
 from app import app, db
-from models import  Doctor, Staff, LabTech, Patient, Appointment, Test, Consultation, ConsultationNotes, DiagnosisNotes, Diagnosis, Prescription, Payment, TestType, Medicine
+from models import  Doctor, Staff, LabTech, Patient, Appointment,LabRequest, Test, Consultation, ConsultationNotes, DiagnosisNotes, Diagnosis, Prescription, Payment, TestType, Medicine
 
 # Import random, Faker, datetime, and timedelta
 import random
@@ -57,6 +57,29 @@ def create_lab_techs():
 # Helper function to create patients
 from datetime import datetime
 import random
+
+# def create_Lab_requests():
+#     doctor = Doctor.query.all()
+#     patients = Patient.query.all()
+#     lab_techs = LabTech.query.all()
+#     test_types = TestType.query.all()
+
+#     for i in range(10):  # Create 10 test records
+#         lab_request = LabRequest(
+#             doctor_id=random.choice(doctor).id,
+#             patient_id=random.choice(patients).id,
+#             lab_tech_id=random.choice(lab_techs).id,
+#             test_types_id=random.choice(test_types).id,
+#             test_results=fake.text(max_nb_chars=100),  # Random test results for demonstration
+#             created_at=datetime.now()
+#         )
+#         db.session.add(lab_request)    
+#     db.session.commit()
+#     print(
+#         "Lab requests created successfully."
+#     )
+    
+    
 
 def create_patients():
     conditions = [
@@ -331,6 +354,7 @@ def seed_data():
     create_patients()
     create_medicines()  # New function to add medicines
     create_appointments()
+    # create_Lab_requests()
     create_consultations()
     create_diagnoses()
     create_prescriptions()

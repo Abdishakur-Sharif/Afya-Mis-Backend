@@ -1,8 +1,8 @@
 """initial migration
 
-Revision ID: df9852cdc94c
+Revision ID: 5c31cdcf24b5
 Revises: 
-Create Date: 2024-11-13 23:58:11.237518
+Create Date: 2024-11-17 11:00:30.922618
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'df9852cdc94c'
+revision = '5c31cdcf24b5'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -22,9 +22,10 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('email', sa.String(), nullable=False),
-    sa.Column('password', sa.String(), nullable=False),
+    sa.Column('phone_number', sa.String(), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('email')
+    sa.UniqueConstraint('email'),
+    sa.UniqueConstraint('phone_number')
     )
     op.create_table('lab_techs',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -94,6 +95,7 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('patient_id', sa.Integer(), nullable=False),
     sa.Column('doctor_id', sa.Integer(), nullable=False),
+    sa.Column('diagnosis_description', sa.String(length=255), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['doctor_id'], ['doctors.id'], name=op.f('fk_diagnosis_doctor_id_doctors')),
     sa.ForeignKeyConstraint(['patient_id'], ['patients.id'], name=op.f('fk_diagnosis_patient_id_patients')),
@@ -137,7 +139,9 @@ def upgrade():
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('diagnosis_id', sa.Integer(), nullable=False),
     sa.Column('notes', sa.Text(), nullable=False),
+    sa.Column('patient_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['diagnosis_id'], ['diagnosis.id'], name=op.f('fk_diagnosis_notes_diagnosis_id_diagnosis')),
+    sa.ForeignKeyConstraint(['patient_id'], ['patients.id'], name=op.f('fk_diagnosis_notes_patient_id_patients')),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('prescriptions',
