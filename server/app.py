@@ -4,7 +4,7 @@ from flask import Flask, request, make_response, jsonify, abort
 import requests 
 from flask_restful import Api, Resource 
 from flask_migrate import Migrate
-from flask_cors import CORS
+from flask_cors import CORS 
 import base64
 import os
 
