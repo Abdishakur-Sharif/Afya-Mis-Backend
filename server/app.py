@@ -7,6 +7,7 @@ from flask_cors import CORS
 import os
 
 from datetime import datetime
+from flask_socketio import SocketIO
 
 
 
@@ -1205,6 +1206,16 @@ def delete_lab_tech(id):
 
     # Return a success message
     return jsonify({'message': 'Lab Tech deleted successfully'}), 200
+
+@app.route('/send_test_alert', methods= ['POST'])
+def send_test_alert():
+    # issue test alert
+    test_data ={"message":"Test alert: Lab report is ready"}
+    socketio.emit('lab_report_completed', test_data)
+    return {"message": "Test alert sent"}, 200
+
+
+
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
