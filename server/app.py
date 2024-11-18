@@ -1214,7 +1214,9 @@ def send_test_alert():
     socketio.emit('lab_report_completed', test_data)
     return {"message": "Test alert sent"}, 200
 
-
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
 
 
 if __name__ == '__main__':
