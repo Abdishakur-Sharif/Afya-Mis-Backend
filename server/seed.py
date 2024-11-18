@@ -1,5 +1,5 @@
 from app import app, db
-from models import  Doctor, Staff, LabTech, Patient, Appointment, Test, Consultation, ConsultationNotes, DiagnosisNotes, Diagnosis, Prescription, Payment, TestType, Medicine
+from models import  Doctor, Staff, TestReport, LabTech, Patient, Appointment, Test, Consultation, ConsultationNotes, DiagnosisNotes, Diagnosis, Prescription, Payment, TestType, Medicine
 
 # Import random, Faker, datetime, and timedelta
 import random
@@ -320,7 +320,8 @@ def create_payments():
         payment = Payment(
             patient_id=random.choice(patients).id,
             service=random.choice(['Consultation', 'Lab Test', 'X-Ray', 'Blood Test']),
-            amount=random.randint(100, 500)
+            amount=random.randint(100, 500),
+            payment_method=random.choice(['cash', 'mpesa'])
         )
         db.session.add(payment)
     db.session.commit()
@@ -371,6 +372,39 @@ def create_tests():
     db.session.commit()
     print("Tests created successfully.")
 
+def create_test_reports():
+    # Fetch existing Test entries for creating TestReports
+    tests = Test.query.all()
+
+    if not tests:
+        print("No tests available to seed reports. Please seed tests first.")
+        return
+    
+
+    test_reports = []
+
+    for i in range(5):  # Create 5 TestReports
+        test = fake.random_element(tests)  # Select a random test from existing entries
+        parameter = fake.word().capitalize()  # Fake test parameter
+        result = f"{fake.random_int(min=1, max=200)} {fake.random_element(['mg/dL', 'g/dL', 'mL/min'])}"  # Fake test result
+        remark = fake.random_element(['Normal', 'High', 'Low', None])  # Random remark, sometimes None
+        created_at = datetime.now()
+
+        test_report = TestReport(
+            test_id=test.id,
+            parameter=parameter,
+            result=result,
+            remark=remark,
+            created_at=created_at
+        )
+
+        test_reports.append(test_report)
+
+    # Save all TestReports in bulk
+    db.session.bulk_save_objects(test_reports)
+    db.session.commit()
+    print("Test reports seeded successfully.")
+
 
 # Main function to seed the database
 def seed_data():
@@ -388,6 +422,7 @@ def seed_data():
     create_test_types()
     create_tests()
     create_staff()
+    create_test_reports()
 
 if __name__ == "__main__":
     with app.app_context():
