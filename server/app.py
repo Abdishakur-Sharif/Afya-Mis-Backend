@@ -1218,6 +1218,10 @@ def send_test_alert():
 def handle_connect():
     print('Client connected')
 
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')    
+
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
