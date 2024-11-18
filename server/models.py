@@ -4,6 +4,8 @@ from sqlalchemy.orm import validates
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy_serializer import SerializerMixin
 
+from datetime import datetime
+
 # Define metadata for naming conventions (including foreign key names)
 metadata = MetaData(
     naming_convention={
@@ -124,6 +126,7 @@ class Test(db.Model, SerializerMixin):  # Table: 'tests'
     lab_tech = db.relationship('LabTech', back_populates='tests')
     test_types = db.relationship('TestType', back_populates='tests')
     doctor = db.relationship('Doctor', back_populates='tests')
+    test_reports = db.relationship('TestReport', back_populates='test')
 
     serialize_only = ('id', 'patient.name', 'doctor.name', 'lab_tech.name', 'test_types.test_name', 'status', 'created_at')
 
@@ -264,8 +267,30 @@ class Payment(db.Model, SerializerMixin):  # Table: 'payments'
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     service = db.Column(db.String, nullable=False)
     amount = db.Column(db.Numeric, nullable=False)
+    payment_method = db.Column(db.String, nullable=False) 
+    
 
     # Relationships
     patient = db.relationship('Patient', back_populates='payments')
 
     serialize_rules = ('-patient.payments', )
+
+class TestReport(db.Model, SerializerMixin):  # Table: 'test_reports'
+    __tablename__ = 'test_reports'
+
+    id = db.Column(db.Integer, primary_key=True)
+    test_id = db.Column(db.Integer, db.ForeignKey('tests.id'), nullable=False)
+    parameter = db.Column(db.String, nullable=False)  # E.g., "Hemoglobin", "Cholesterol"
+    result = db.Column(db.String, nullable=False)  # E.g., "12.3 g/dL", "200 mg/dL"
+    remark = db.Column(db.String, nullable=True)  # E.g., "Normal", "High"
+    created_at = db.Column(db.DateTime, nullable=False)  # Timestamp for when the report was created
+
+    # Relationships
+    test = db.relationship('Test', back_populates='test_reports')
+
+    # Serialization Rules
+    serialize_rules = (
+        'id', 'test_id', 'parameter', 'result', 'remark', 'created_at',
+        'test.patient.name', 'test.doctor.name', 'test.lab_tech.name', 'test.test_types.test_name'
+    )
+
