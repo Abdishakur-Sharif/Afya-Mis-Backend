@@ -1,8 +1,8 @@
-"""Initial Migrattion
+"""Initial commit
 
-Revision ID: 4c29b4a368db
+Revision ID: a04d702a8e50
 Revises: 
-Create Date: 2024-11-20 10:16:45.537771
+Create Date: 2024-11-20 21:15:06.413328
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '4c29b4a368db'
+revision = 'a04d702a8e50'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -88,7 +88,7 @@ def upgrade():
     sa.Column('patient_id', sa.Integer(), nullable=False),
     sa.Column('doctor_id', sa.Integer(), nullable=False),
     sa.Column('consultation_date', sa.DateTime(), nullable=False),
-    sa.Column('appointment_id', sa.Integer(), nullable=False),
+    sa.Column('appointment_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['appointment_id'], ['appointments.id'], name=op.f('fk_consultations_appointment_id_appointments')),
     sa.ForeignKeyConstraint(['doctor_id'], ['doctors.id'], name=op.f('fk_consultations_doctor_id_doctors')),
     sa.ForeignKeyConstraint(['patient_id'], ['patients.id'], name=op.f('fk_consultations_patient_id_patients')),
@@ -100,7 +100,7 @@ def upgrade():
     sa.Column('doctor_id', sa.Integer(), nullable=False),
     sa.Column('diagnosis_description', sa.String(length=255), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('appointment_id', sa.Integer(), nullable=False),
+    sa.Column('appointment_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['appointment_id'], ['appointments.id'], name=op.f('fk_diagnosis_appointment_id_appointments')),
     sa.ForeignKeyConstraint(['doctor_id'], ['doctors.id'], name=op.f('fk_diagnosis_doctor_id_doctors')),
     sa.ForeignKeyConstraint(['patient_id'], ['patients.id'], name=op.f('fk_diagnosis_patient_id_patients')),
