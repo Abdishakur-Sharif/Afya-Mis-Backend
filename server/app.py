@@ -31,9 +31,9 @@ CORS(app)
 MPESA_CONSUMER_KEY = 'F3ryTTFGrFsyCewzqfogNQkrsce7uAV0qK5LdFAP4YFPKdpd'
 MPESA_CONSUMER_SECRET = 'H83qpQELVEPIbg8dJ91nVDgsIFKs4PxOddyjcRkVVU6lJpthZTF9wtZkPHGN59r0'
 MPESA_BASE_URL = 'https://sandbox.safaricom.co.ke'  # Use production URL in live environment
-MPESA_SHORTCODE = '123456'  # Your MPESA shortcode
+MPESA_SHORTCODE = '174379'  # Your MPESA shortcode
 MPESA_PASSKEY = 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
-CALLBACK_URL = 'https://your-callback-url.com/mpesa/callback'
+CALLBACK_URL = 'https://mydomain.com/path'
 
 # Index route
 class Index(Resource):
@@ -1378,44 +1378,50 @@ def get_mpesa_access_token():
 def trigger_mpesa_stk_push(phone_number, amount, reference, description):
     """Initiate MPESA STK Push."""
     try:
-        access_token = get_mpesa_access_token()  # Make sure you are getting the correct access token
-        timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')  # Generate the timestamp
-        password = base64.b64encode(
-            (MPESA_SHORTCODE + MPESA_PASSKEY + timestamp).encode('utf-8')
-        ).decode('utf-8')
-        password = password.hex()  # Encode password as base64
+        # Generate access token
+        access_token = get_mpesa_access_token()
 
+        # Generate timestamp and password
+        timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+        password = base64.b64encode(
+        (MPESA_SHORTCODE + MPESA_PASSKEY + timestamp).encode('utf-8')
+        ).decode('utf-8')
+
+        # API Endpoint and Headers
         url = f"{MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest"
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
 
+        # Prepare payload
         payload = {
-            {    
-            "BusinessShortCode": "174379",    
-            "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMTYwMjE2MTY1NjI3",    
-            "Timestamp":"20160216165627",    
-            "TransactionType": "CustomerPayBillOnline",    
-            "Amount": "1",    
-            "phone_number":"phone_number",    
-            "PartyB":"174379",    
-            "phone_number":"phone_number",    
-            "CallBackURL": "https://mydomain.com/path",    
-            "AccountReference":"Test",    
-            "TransactionDesc":"Test"
-            }
+            "BusinessShortCode": MPESA_SHORTCODE,
+            "Password":"MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjQxMTIwMDYxNTM3",
+            "Timestamp":"20241120061537",
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": 1,
+            "PartyA": phone_number,  # The customer's phone number
+            "PartyB": MPESA_SHORTCODE,
+            "PhoneNumber": phone_number,
+            "CallBackURL": CALLBACK_URL,
+            "AccountReference":"CompanyXLTD",
+            "TransactionDesc": "Payment of X"
         }
+
+        # Send request
         response = requests.post(url, json=payload, headers=headers)
-        print(f"MPESA Response: {response.text}")  # Log the full response
-        if response.status_code == 200:
-            return response.json()
-        else:
-            # Log error response from MPESA
-            print(f"Failed MPESA request: {response.text}")
-            return {"status": "error", "message": response.text}
+        print(f"MPESA Response: {response.text}")  # Log the full response for debugging
+        response.raise_for_status()
+
+        # Return response JSON
+        return response.json()
+
+    except requests.exceptions.RequestException as e:
+        print(f"RequestException in MPESA request: {str(e)}")
+        return {"status": "error", "message": str(e)}
     except Exception as e:
-        print(f"Error in MPESA request: {str(e)}")
+        print(f"Unexpected error in MPESA request: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 
@@ -1424,24 +1430,20 @@ def trigger_mpesa_stk_push(phone_number, amount, reference, description):
 def mpesa_stk_push():
     data = request.get_json()
 
-    # Log incoming data for debugging
+    # Debugging log
     print("Received data for MPESA payment:", data)
 
-    # Extract required fields
     phone_number = data.get('phone_number')
     amount = data.get('amount')
     service = data.get('service')
 
-    # Validate required fields
     if not phone_number or not amount or not service:
         return jsonify({"error": "Missing required fields"}), 400
 
-    # Look up the patient based on the phone number
     patient = Patient.query.filter_by(phone_number=phone_number).first()
     if not patient:
         return jsonify({"error": "Patient not found"}), 404
 
-    # Trigger MPESA STK Push
     try:
         stk_response = trigger_mpesa_stk_push(
             phone_number=phone_number,
@@ -1451,9 +1453,8 @@ def mpesa_stk_push():
         )
 
         if stk_response.get('ResponseCode') == '0':  # Success
-            # Record the payment in the database
             payment = Payment(
-                patient_id=patient.id,  # Use the patient ID from the lookup
+                patient_id=patient.id,
                 service=service,
                 amount=amount,
                 payment_method='mpesa'
@@ -1473,11 +1474,12 @@ def mpesa_stk_push():
                 "stk_response": stk_response
             }), 200
         else:
+            print(f"MPESA Error Response: {stk_response}")
             return jsonify({"error": "Failed to initiate MPESA STK Push", "details": stk_response}), 400
 
     except Exception as e:
+        print(f"Error in MPESA STK Push route: {str(e)}")
         return jsonify({"error": "An error occurred while processing the MPESA request", "details": str(e)}), 500
-
 
 
 if __name__ == '__main__':
