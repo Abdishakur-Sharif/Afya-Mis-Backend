@@ -159,7 +159,7 @@ class Consultation(db.Model, SerializerMixin):  # Table: 'consultations'
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'), nullable=False)
     consultation_date = db.Column(db.DateTime, nullable=False)
-    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
     
     # Relationships
     patient = db.relationship('Patient', back_populates='consultations')  # Reverse relationship to Patient
@@ -197,15 +197,16 @@ class Diagnosis(db.Model, SerializerMixin):  # Table: 'diagnosis'
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'), nullable=False)
-    diagnosis_description = db.Column(db.String(255)) 
+    diagnosis_description = db.Column(db.String(255),nullable=True) 
     created_at = db.Column(db.DateTime, nullable=False)
-    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
 
     # Relationships
     patient = db.relationship('Patient', back_populates='diagnosis')
     doctor = db.relationship('Doctor', back_populates='diagnosis')
     diagnosis_notes = db.relationship('DiagnosisNotes', back_populates='diagnosis')
     appointment = db.relationship('Appointment', back_populates='diagnoses')
+    # diagnosis_date = Column(DateTime, nullable=False)
 
     serialize_only = (
         'id', 'patient_id', 'doctor_id', 
