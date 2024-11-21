@@ -1,13 +1,11 @@
-from models import db, Doctor, Staff, Diagnosis, TestReport, LabTech, Patient, Payment, Consultation, Prescription, Medicine, Test, TestType, Appointment, ConsultationNotes, DiagnosisNotes
+from models import db, Doctor, Staff, Diagnosis, TestReport,  LabTech, Patient, Payment, Consultation, Prescription, Medicine, Test, TestType, Appointment, ConsultationNotes, DiagnosisNotes
 from flask_migrate import Migrate
-from flask import Flask, request, make_response, jsonify, abort
-import requests 
-from flask_restful import Api, Resource 
+from flask import Flask, request , make_response, jsonify, abort
+from flask_restful import Api, Resource
 from flask_migrate import Migrate
 from flask_cors import CORS 
-import base64
 import os
-
+import base64
 
 from datetime import datetime
 
@@ -27,13 +25,6 @@ api = Api(app)
 
 CORS(app)
 
-# MPESA Configuration
-MPESA_CONSUMER_KEY = 'F3ryTTFGrFsyCewzqfogNQkrsce7uAV0qK5LdFAP4YFPKdpd'
-MPESA_CONSUMER_SECRET = 'H83qpQELVEPIbg8dJ91nVDgsIFKs4PxOddyjcRkVVU6lJpthZTF9wtZkPHGN59r0'
-MPESA_BASE_URL = 'https://sandbox.safaricom.co.ke'  # Use production URL in live environment
-MPESA_SHORTCODE = '174379'  # Your MPESA shortcode
-MPESA_PASSKEY = 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
-CALLBACK_URL = 'https://mydomain.com/path'
 
 # Index route
 class Index(Resource):
@@ -42,6 +33,93 @@ class Index(Resource):
         return make_response(response_dict, 200)
 
 api.add_resource(Index, '/')
+
+class DoctorsResource(Resource):
+    def get(self, doctor_id=None):
+        if doctor_id:
+            # Fetch a specific doctor by ID if provided
+            doctor = Doctor.query.get(doctor_id)
+            if not doctor:
+                return make_response({"message": f"Doctor with ID {doctor_id} not found"}, 404)
+            
+            # Serialize the doctor data
+            doctor_data = {
+                "id": doctor.id,
+                "name": doctor.name,
+                "email": doctor.email,
+                "phone_number": doctor.phone_number,
+                "speciality": doctor.speciality 
+            }
+            
+            return make_response(doctor_data, 200)
+        
+        # Fetch all doctors if no ID is provided
+        doctors = Doctor.query.all()
+        if not doctors:
+            return make_response({"message": "No doctors found"}, 404)
+        
+        # Serialize all doctor data
+        doctors_data = [{
+            "id": doctor.id,
+            "name": doctor.name,
+            "email": doctor.email,
+            "phone_number": doctor.phone_number,
+            "speciality": doctor.speciality 
+        } for doctor in doctors]
+        
+        return make_response(doctors_data, 200)
+
+    def post(self):
+        # Extract data from the request JSON
+        data = request.get_json()
+        
+        # Validate required fields
+        name = data.get("name")
+        email = data.get("email")
+        phone_number = data.get("phone_number")
+        speciality = data.get("speciality") 
+        
+        if not all([name, email, phone_number]):
+            return make_response({"message": "Missing required fields"}, 400)
+        
+        # Create a new Doctor record
+        new_doctor = Doctor(
+            name=name,
+            email=email,
+            phone_number=phone_number,
+            speciality=speciality 
+        )
+        
+        # Add the new record to the session and commit
+        db.session.add(new_doctor)
+        db.session.commit()
+        
+        # Return the created doctor data as a response
+        response_data = {
+            "id": new_doctor.id,
+            "name": new_doctor.name,
+            "email": new_doctor.email,
+            "phone_number": new_doctor.phone_number,
+            "speciality": new_doctor.speciality 
+        }
+        
+        return make_response(response_data, 201)
+
+    def delete(self, doctor_id):
+        # Fetch the doctor to delete by ID
+        doctor = Doctor.query.get(doctor_id)
+        if not doctor:
+            return make_response({"message": f"Doctor with ID {doctor_id} not found"}, 404)
+        
+        # Delete the doctor
+        db.session.delete(doctor)
+        db.session.commit()
+
+        return make_response({"message": f"Doctor with ID {doctor_id} has been deleted."}, 200)
+        
+# Add the resource routes
+api.add_resource(DoctorsResource, '/doctors', '/doctors/<int:doctor_id>')
+
 
 class Consultations(Resource):
     def get(self, consultation_id=None):
@@ -134,7 +212,8 @@ class Notes(Resource):
         # Validate input data
         if not data.get('notes') or not data.get('patient_id') or not data.get('consultation_id') or not data.get('created_at'):
             return make_response({"message": "Missing required fields (notes, patient_id, consultation_id, created_at)"}, 400)
-
+             
+             
         # Create a new ConsultationNotes object
         new_note = ConsultationNotes(
             notes=data['notes'],
@@ -182,7 +261,6 @@ class Patients(Resource):
                 "phone_number": patient.phone_number,
                 "medical_history": patient.medical_history,
                 "date_of_birth": patient.date_of_birth.isoformat(),
-                "address": patient.address,
                 "email": patient.email
             }
             return make_response(patient_data, 200)
@@ -198,7 +276,6 @@ class Patients(Resource):
             "phone_number": patient.phone_number,
             "medical_history": patient.medical_history,
             "date_of_birth": patient.date_of_birth.isoformat(),
-            "address": patient.address,
             "email": patient.email
         } for patient in patients]
         return make_response(patient_data, 200)
@@ -251,8 +328,6 @@ class Patients(Resource):
             patient.gender = data['gender']
         if 'phone_number' in data:
             patient.phone_number = data['phone_number']
-        if 'address' in data:
-            patient.address = data['phone_number']
         if 'medical_history' in data:
             patient.medical_history = data['medical_history']
         if 'date_of_birth' in data:
@@ -361,9 +436,9 @@ class Diagnoses(Resource):
                 "patient_id": diagnosis.patient_id,
                 "doctor_id": diagnosis.doctor_id,
                 "diagnosis_description": diagnosis.diagnosis_description,
-                "created_at": diagnosis.created_at.isoformat()
+                "created_at": diagnosis.created_at.isoformat(),
+                "diagnosis_date": diagnosis.diagnosis_date.isoformat()
             }
-            
             return make_response(diagnosis_data, 200)
         
         # Fetch all diagnoses if no ID is provided
@@ -377,7 +452,8 @@ class Diagnoses(Resource):
             "patient_id": diagnosis.patient_id,
             "doctor_id": diagnosis.doctor_id,
             "diagnosis_description": diagnosis.diagnosis_description,
-            "created_at": diagnosis.created_at.isoformat()
+            "created_at": diagnosis.created_at.isoformat(),
+            "diagnosis_date": diagnosis.diagnosis_date.isoformat()
         } for diagnosis in diagnoses]
         
         return make_response(diagnoses_data, 200)
@@ -399,6 +475,7 @@ class Diagnoses(Resource):
             patient_id=patient_id,
             doctor_id=doctor_id,
             diagnosis_description=diagnosis_description,
+            # diagnosis_date=datetime.utcnow(),
             created_at=datetime.utcnow()
         )
         
@@ -412,10 +489,36 @@ class Diagnoses(Resource):
             "patient_id": new_diagnosis.patient_id,
             "doctor_id": new_diagnosis.doctor_id,
             "diagnosis_description": new_diagnosis.diagnosis_description,
-            "created_at": new_diagnosis.created_at.isoformat()
+            "created_at": new_diagnosis.created_at.isoformat(),
+            
         }
         
         return make_response(response_data, 201)
+
+    def patch(self, diagnosis_id):
+        diagnosis = Diagnosis.query.get(diagnosis_id)
+        if not diagnosis:
+            return make_response({"message": f"Diagnosis with ID {diagnosis_id} not found"}, 404)
+
+        data = request.get_json()
+        if 'diagnosis_description' in data:
+            diagnosis.diagnosis_description = data['diagnosis_description']
+        if 'doctor_id' in data:
+            diagnosis.doctor_id = data['doctor_id']
+        if 'patient_id' in data:
+            diagnosis.patient_id = data['patient_id']
+
+        db.session.commit()
+        return make_response({"message": "Diagnosis updated successfully"}, 200)
+
+    def delete(self, diagnosis_id):
+        diagnosis = Diagnosis.query.get(diagnosis_id)
+        if not diagnosis:
+            return make_response({"message": f"Diagnosis with ID {diagnosis_id} not found"}, 404)
+
+        db.session.delete(diagnosis)
+        db.session.commit()
+        return make_response({"message": "Diagnosis deleted successfully"}, 200)
 
 # Add the resource routes
 api.add_resource(Diagnoses, '/diagnoses', '/diagnoses/<int:diagnosis_id>')
@@ -434,12 +537,10 @@ class DiagnosisNotesResource(Resource):
             # Serialize the note data
             note_data = {
                 "id": note.id,
-                "created_at": note.created_at.isoformat() if note.created_at else None,
+                "created_at": note.created_at .isoformat(),
                 "diagnosis_id": note.diagnosis_id,
-                "notes": note.notes,
-                "patient_id": note.patient_id
+                "note": note.note
             }
-            
             return make_response(note_data, 200)
         
         # Fetch all diagnosis notes if no ID is provided
@@ -447,13 +548,12 @@ class DiagnosisNotesResource(Resource):
         if not notes:
             return make_response({"message": "No diagnosis notes found"}, 404)
         
-        # Serialize all notes data
+        # Serialize all note data
         notes_data = [{
             "id": note.id,
-            "created_at": note.created_at.isoformat() if note.created_at else None,
+            "created_at": note.created_at.isoformat(),
             "diagnosis_id": note.diagnosis_id,
-            "notes": note.notes,
-            "patient_id": note.patient_id
+            "note": note.note
         } for note in notes]
         
         return make_response(notes_data, 200)
@@ -464,18 +564,16 @@ class DiagnosisNotesResource(Resource):
         
         # Validate that required fields are present
         diagnosis_id = data.get("diagnosis_id")
-        notes = data.get("notes")
-        patient_id = data.get("patient_id")
+        note = data.get("note")
         
-        if not all([diagnosis_id, notes, patient_id]):
+        if not all([diagnosis_id, note]):
             return make_response({"message": "Missing required fields"}, 400)
         
         # Create a new DiagnosisNote record
         new_note = DiagnosisNotes(
-            created_at=datetime.utcnow(),
             diagnosis_id=diagnosis_id,
-            notes=notes,
-            patient_id=patient_id
+            note=note,
+            created_at=datetime.utcnow()
         )
         
         # Add the new record to the session and commit
@@ -485,92 +583,36 @@ class DiagnosisNotesResource(Resource):
         # Return the created note data as a response
         response_data = {
             "id": new_note.id,
-            "created_at": new_note.created_at.isoformat(),
             "diagnosis_id": new_note.diagnosis_id,
-            "notes": new_note.notes,
-            "patient_id": new_note.patient_id
+            "note": new_note.note,
+            "created_at": new_note.created_at.isoformat()
         }
         
         return make_response(response_data, 201)
+
+    def patch(self, note_id):
+        note = DiagnosisNotes.query.get(note_id)
+        if not note:
+            return make_response({"message": f"Diagnosis note with ID {note_id} not found"}, 404)
+
+        data = request.get_json()
+        if 'note' in data:
+            note.note = data['note']
+
+        db.session.commit()
+        return make_response({"message": "Diagnosis note updated successfully"}, 200)
+
+    def delete(self, note_id):
+        note = DiagnosisNotes.query.get(note_id)
+        if not note:
+            return make_response({"message": f"Diagnosis note with ID {note_id} not found"}, 404)
+
+        db.session.delete(note)
+        db.session.commit()
+        return make_response({"message": "Diagnosis note deleted successfully"}, 200)
 
 # Add the resource routes
 api.add_resource(DiagnosisNotesResource, '/diagnosis_notes', '/diagnosis_notes/<int:note_id>')
-
-# Doctor Resource
-class DoctorsResource(Resource):
-    def get(self, doctor_id=None):
-        if doctor_id:
-            # Fetch a specific doctor by ID if provided
-            doctor = Doctor.query.get(doctor_id)
-            if not doctor:
-                return make_response({"message": f"Doctor with ID {doctor_id} not found"}, 404)
-            
-            # Serialize the doctor data
-            doctor_data = {
-                "id": doctor.id,
-                "name": doctor.name,
-                "email": doctor.email,
-                "phone_number": doctor.phone_number,
-                "speciality": doctor.speciality 
-            }
-            
-            return make_response(doctor_data, 200)
-        
-        # Fetch all doctors if no ID is provided
-        doctors = Doctor.query.all()
-        if not doctors:
-            return make_response({"message": "No doctors found"}, 404)
-        
-        # Serialize all doctor data
-        doctors_data = [{
-            "id": doctor.id,
-            "name": doctor.name,
-            "email": doctor.email,
-            "phone_number": doctor.phone_number,
-            "speciality": doctor.speciality 
-        } for doctor in doctors]
-        
-        return make_response(doctors_data, 200)
-
-    def post(self):
-        # Extract data from the request JSON
-        data = request.get_json()
-        
-        # Validate required fields
-        name = data.get("name")
-        email = data.get("email")
-        phone_number = data.get("phone_number")
-        speciality = data.get("speciality") 
-        
-        if not all([name, email, phone_number]):
-            return make_response({"message": "Missing required fields"}, 400)
-        
-        # Create a new Doctor record
-        new_doctor = Doctor(
-            name=name,
-            email=email,
-            phone_number=phone_number,
-            speciality=speciality 
-        )
-        
-        # Add the new record to the session and commit
-        db.session.add(new_doctor)
-        db.session.commit()
-        
-        # Return the created doctor data as a response
-        response_data = {
-            "id": new_doctor.id,
-            "name": new_doctor.name,
-            "email": new_doctor.email,
-            "phone_number": new_doctor.phone_number,
-            "speciality": new_doctor.speciality 
-        }
-        
-        return make_response(response_data, 201)
-
-# Add the resource routes
-api.add_resource(DoctorsResource, '/doctors', '/doctors/<int:doctor_id>')
-
 class Appointments(Resource):
     def get(self):
         appointments = Appointment.query.all()
@@ -875,7 +917,6 @@ def get_test(id):
 
 @app.route('/tests', methods=['POST'])
 def create_test():
-    # Get the data from the request
     data = request.get_json()
 
     # Validate required fields
@@ -918,7 +959,7 @@ def create_test():
         lab_tech_id=lab_tech.id,
         test_types_id=test_type.id,
         status=data['status'],
-        # test_results=data.get('test_results', ''),  # Optional: handle missing test results
+        test_results=data.get('test_results', ''),  # Optional: handle missing test results
         created_at=created_at
     )
 
@@ -947,20 +988,38 @@ def update_test(test_id):
     if not test:
         return jsonify({'message': 'Test not found'}), 404
 
-    # Only update the status if provided in the request data
+    # Update fields if provided in the request
     if 'status' in data:
         if data['status'] not in ['pending', 'completed']:
             return jsonify({'message': 'Invalid status. Allowed values are "pending" and "completed".'}), 400
         test.status = data['status']
 
-    # Commit the changes to the database
-    try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'message': f'Error updating status: {str(e)}'}), 500
+    if 'test_results' in data:
+        test.test_results = data['test_results']
 
-    # Return the updated test data
+    # Update related objects if provided
+    if 'doctor' in data:
+        doctor = Doctor.query.filter_by(name=data['doctor']['name']).first()
+        if not doctor:
+            return jsonify({'message': 'Doctor not found'}), 404
+        test.doctor_id = doctor.id
+
+    if 'lab_tech' in data:
+        lab_tech = LabTech.query.filter_by(name=data['lab_tech']['name']).first()
+        if not lab_tech:
+            return jsonify({'message': 'Lab Tech not found'}), 404
+        test.lab_tech_id = lab_tech.id
+
+    if 'test_types' in data:
+        test_type = TestType.query.filter_by(test_name=data['test_types']['test_name']).first()
+        if not test_type:
+            return jsonify({'message': 'Test Type not found'}), 404
+        test.test_types_id = test_type.id
+
+    # Commit the changes to the database
+    db.session.commit()
+
+    # Return the updated test data (without appointment_id)
     return jsonify({
         'id': test.id,
         'created_at': test.created_at,
@@ -1085,26 +1144,23 @@ def update_staff(staff_id):
 
 @app.route('/staffs/<int:staff_id>', methods=['DELETE'])
 def delete_staff(staff_id):
-    # Find the staff member
     staff = Staff.query.get(staff_id)
     if not staff:
         return jsonify({'message': 'Staff member not found'}), 404
 
-    # Delete the staff member
     db.session.delete(staff)
     db.session.commit()
-
     return jsonify({'message': 'Staff member deleted successfully'}), 200
 
+
+# Routes for Lab Technician Management
 @app.route('/lab_techs', methods=['GET'])
 def get_lab_techs():
     lab_techs = LabTech.query.all()
-    return jsonify([{
-        'id': lab_tech.id,
-        'name': lab_tech.name,
-        'email': lab_tech.email,
-        'phone_number': lab_tech.phone_number
-    } for lab_tech in lab_techs]), 200
+    return jsonify([
+        {'id': lab_tech.id, 'name': lab_tech.name, 'email': lab_tech.email, 'phone_number': lab_tech.phone_number}
+        for lab_tech in lab_techs
+    ]), 200
 
 
 @app.route('/lab_techs/<int:lab_tech_id>', methods=['GET'])
@@ -1120,24 +1176,21 @@ def get_lab_tech_by_id(lab_tech_id):
         'phone_number': lab_tech.phone_number
     }), 200
 
+
 @app.route('/lab_techs', methods=['POST'])
 def create_lab_tech():
     data = request.get_json()
-    
-    # Validate required fields
     required_fields = ['name', 'email', 'phone_number']
     for field in required_fields:
         if field not in data:
             return jsonify({'message': f'Missing required field: {field}'}), 400
 
-    # Check if the email and phone number already exist
     if LabTech.query.filter_by(email=data['email']).first():
         return jsonify({'message': 'Email already exists'}), 400
 
     if LabTech.query.filter_by(phone_number=data['phone_number']).first():
         return jsonify({'message': 'Phone number already exists'}), 400
 
-    # Create the new lab tech
     new_lab_tech = LabTech(
         name=data['name'],
         email=data['email'],
@@ -1150,37 +1203,26 @@ def create_lab_tech():
     return jsonify({
         'id': new_lab_tech.id,
         'name': new_lab_tech.name,
-        'phone_number': new_lab_tech.phone_number,
-        'email': new_lab_tech.email
+        'email': new_lab_tech.email,
+        'phone_number': new_lab_tech.phone_number
     }), 201
+
 
 @app.route('/lab_techs/<int:id>', methods=['PATCH'])
 def update_lab_tech(id):
     data = request.get_json()
-
-    # Find the lab tech by ID
     lab_tech = LabTech.query.get(id)
     if not lab_tech:
         return jsonify({'message': 'Lab Tech not found'}), 404
 
-    # Update fields if they exist in the request data
     if 'name' in data:
         lab_tech.name = data['name']
-    if 'email' in data:
-        # Check if the new email is already used
-        if LabTech.query.filter_by(email=data['email']).first():
-            return jsonify({'message': 'Email already exists'}), 400
+    if 'email' in data and LabTech.query.filter_by(email=data['email']).first() is None:
         lab_tech.email = data['email']
-    if 'phone_number' in data:
-        # Check if the new phone number is already used
-        if LabTech.query.filter_by(phone_number=data['phone_number']).first():
-            return jsonify({'message': 'Phone number already exists'}), 400
+    if 'phone_number' in data and LabTech.query.filter_by(phone_number=data['phone_number']).first() is None:
         lab_tech.phone_number = data['phone_number']
 
-    # Commit the changes to the database
     db.session.commit()
-
-    # Return the updated lab tech data
     return jsonify({
         'id': lab_tech.id,
         'name': lab_tech.name,
@@ -1188,104 +1230,96 @@ def update_lab_tech(id):
         'phone_number': lab_tech.phone_number
     }), 200
 
+
 @app.route('/lab_techs/<int:id>', methods=['DELETE'])
 def delete_lab_tech(id):
-    # Find the lab tech by ID
     lab_tech = LabTech.query.get(id)
     if not lab_tech:
         return jsonify({'message': 'Lab Tech not found'}), 404
 
-    # Delete the lab tech
     db.session.delete(lab_tech)
     db.session.commit()
-
-    # Return a success message
     return jsonify({'message': 'Lab Tech deleted successfully'}), 200
 
-@app.route('/test_reports', methods=['GET'])
-def get_test_reports():
-    test_id = request.args.get('test_id')  # Optional filter by test_id
 
-    # Fetch reports with related data eagerly loaded
-    if test_id:
-        test_reports = TestReport.query.filter_by(test_id=test_id).all()
-    else:
-        test_reports = TestReport.query.all()
-
-    # Include related data in the serialized output
-    results = []
-    for report in test_reports:
-        test = report.test  # Related test object
-        results.append({
-            "id": report.id,
-            "parameter": report.parameter,
-            "result": report.result,
-            "remark": report.remark,
-            "created_at": report.created_at,
-            "patient_name": test.patient.name,
-            "doctor_name": test.doctor.name,
-            "lab_tech_name": test.lab_tech.name,
-            "test_type_name": test.test_types.test_name,
-        })
-
-    return jsonify(results), 200
-
-from datetime import datetime
-
+# Routes for Test Report Management
 @app.route('/test_reports', methods=['POST'])
 def create_test_report():
-    # Get JSON data from the request
     data = request.get_json()
-
-    # Validate that the 'findings' field is provided and that each entry has 'parameter' and 'result'
-    if 'findings' not in data or not all('parameter' in f and 'result' in f for f in data['findings']):
-        return jsonify({"error": "Missing required fields: parameter or result in findings"}), 400
-
-    # Validate that patient_name, doctor_name, and test_type are present
-    if not all(key in data for key in ['patient_name', 'doctor_name', 'test_type']):
-        return jsonify({"error": "Missing required fields: patient_name, doctor_name, or test_type"}), 400
-
-    # Use patient_name, doctor_name, and test_type to find the related test
-    test = Test.query.join(Patient).join(Doctor).join(TestType).filter(
-        Patient.name == data['patient_name'],
-        Doctor.name == data['doctor_name'],
-        TestType.test_name == data['test_type']
-    ).first()
-
+    test_id = data.get('test_id')
+    test = Test.query.get(test_id)
     if not test:
-        return jsonify({"error": "Test not found with the provided details"}), 400
+        return jsonify({'message': 'Test not found'}), 404
 
-    # Get the current datetime for 'created_at'
-    created_at = datetime.utcnow()
+    test_report = TestReport(
+        test_id=test.id,
+        parameter=data.get('parameter', 'Default Parameter'),
+        result=data.get('result', 'Default Result'),
+        remark=data.get('remark', 'Normal'),
+        created_at=datetime.utcnow()
+    )
+    db.session.add(test_report)
+    db.session.commit()
 
-    # Loop through each finding and insert it as a separate row in the TestReport table
-    for finding in data['findings']:
-        # Create a new test report entry
-        test_report = TestReport(
-            test_id=test.id,  # The ID of the found test
-            parameter=finding['parameter'],  # Single parameter
-            result=finding['result'],  # Single result
-            remark=data.get('remark'),  # Optional remark (if provided)
-            created_at=created_at  # Automatically set 'created_at'
-        )
-        
-        # Add the test report to the session
-        db.session.add(test_report)
+    return jsonify({'message': 'Test report created successfully!'}), 201
 
-    # Commit the transaction to insert all findings
-    try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
 
-    # Construct and send the response
-    response = {
-        "status": "success",
-        "message": "Test report created successfully",
-    }
+@app.route('/test_reports', methods=['GET'])
+def get_all_test_reports():
+    test_reports = TestReport.query.all()
+    return jsonify([
+        {
+            'id': report.id,
+            'test_id': report.test_id,
+            'parameter': report.parameter,
+            'result': report.result,
+            'remark': report.remark,
+            'created_at': report.created_at
+        }
+        for report in test_reports
+    ]), 200
 
-    return jsonify(response), 201
+
+@app.route('/test_reports/<int:id>', methods=['GET'])
+def get_test_report(id):
+    test_report = TestReport.query.get(id)
+    if not test_report:
+        return jsonify({'message': 'Test report not found'}), 404
+
+    return jsonify({
+        'id': test_report.id,
+        'test_id': test_report.test_id,
+        'parameter': test_report.parameter,
+        'result': test_report.result,
+        'remark': test_report.remark,
+        'created_at': test_report.created_at
+    }), 200
+
+
+@app.route('/test_reports/<int:id>', methods=['PUT'])
+def update_test_report(id):
+    test_report = TestReport.query.get(id)
+    if not test_report:
+        return jsonify({'message': 'Test report not found'}), 404
+
+    data = request.get_json()
+    test_report.parameter = data.get('parameter', test_report.parameter)
+    test_report.result = data.get('result', test_report.result)
+    test_report.remark = data.get('remark', test_report.remark)
+
+    db.session.commit()
+    return jsonify({'message': 'Test report updated successfully!'}), 200
+
+
+@app.route('/test_reports/<int:id>', methods=['DELETE'])
+def delete_test_report(id):
+    test_report = TestReport.query.get(id)
+    if not test_report:
+        return jsonify({'message': 'Test report not found'}), 404
+
+    db.session.delete(test_report)
+    db.session.commit()
+    return jsonify({'message': 'Test report deleted successfully!'}), 200
 
 @app.route('/payments', methods=['GET'])
 def get_payments():
@@ -1330,11 +1364,7 @@ def add_payment():
     patient_id = data.get('patient_id')
     service = data.get('service')
     amount = data.get('amount')
-    payment_method = data.get('payment_method')  # 'cash' or 'mpesa'
-
-
-    if payment_method not in ['cash', 'mpesa']:
-        return jsonify({"error": "Invalid payment method"}), 400
+    payment_method = "cash"  # Defaulting payment method to cash
 
     # Verify patient exists
     patient = Patient.query.get(patient_id)
@@ -1361,125 +1391,6 @@ def add_payment():
             "payment_method": payment.payment_method
         }
     }), 201
-
-# Helper Functions
-def get_mpesa_access_token():
-    try:
-        print("Generating MPESA access token...")
-        url = f"{MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials"
-        response = requests.get(url, auth=(MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET))
-        print(f"MPESA Token Response: {response.text}")
-        response.raise_for_status()
-        return response.json().get('access_token')
-    except Exception as e:
-        print(f"Error generating MPESA token: {e}")
-        raise
-
-def trigger_mpesa_stk_push(phone_number, amount, reference, description):
-    """Initiate MPESA STK Push."""
-    try:
-        # Generate access token
-        access_token = get_mpesa_access_token()
-
-        # Generate timestamp and password
-        timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-        password = base64.b64encode(
-        (MPESA_SHORTCODE + MPESA_PASSKEY + timestamp).encode('utf-8')
-        ).decode('utf-8')
-
-        # API Endpoint and Headers
-        url = f"{MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest"
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
-
-        # Prepare payload
-        payload = {
-            "BusinessShortCode": MPESA_SHORTCODE,
-            "Password":"MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjQxMTIwMDYxNTM3",
-            "Timestamp":"20241120061537",
-            "TransactionType": "CustomerPayBillOnline",
-            "Amount": 1,
-            "PartyA": phone_number,  # The customer's phone number
-            "PartyB": MPESA_SHORTCODE,
-            "PhoneNumber": phone_number,
-            "CallBackURL": CALLBACK_URL,
-            "AccountReference":"CompanyXLTD",
-            "TransactionDesc": "Payment of X"
-        }
-
-        # Send request
-        response = requests.post(url, json=payload, headers=headers)
-        print(f"MPESA Response: {response.text}")  # Log the full response for debugging
-        response.raise_for_status()
-
-        # Return response JSON
-        return response.json()
-
-    except requests.exceptions.RequestException as e:
-        print(f"RequestException in MPESA request: {str(e)}")
-        return {"status": "error", "message": str(e)}
-    except Exception as e:
-        print(f"Unexpected error in MPESA request: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-
-# Routes
-@app.route('/payments/mpesa', methods=['POST'])
-def mpesa_stk_push():
-    data = request.get_json()
-
-    # Debugging log
-    print("Received data for MPESA payment:", data)
-
-    phone_number = data.get('phone_number')
-    amount = data.get('amount')
-    service = data.get('service')
-
-    if not phone_number or not amount or not service:
-        return jsonify({"error": "Missing required fields"}), 400
-
-    patient = Patient.query.filter_by(phone_number=phone_number).first()
-    if not patient:
-        return jsonify({"error": "Patient not found"}), 404
-
-    try:
-        stk_response = trigger_mpesa_stk_push(
-            phone_number=phone_number,
-            amount=amount,
-            reference=service,
-            description=f"Payment for {service}"
-        )
-
-        if stk_response.get('ResponseCode') == '0':  # Success
-            payment = Payment(
-                patient_id=patient.id,
-                service=service,
-                amount=amount,
-                payment_method='mpesa'
-            )
-            db.session.add(payment)
-            db.session.commit()
-
-            return jsonify({
-                "message": "MPESA STK Push initiated successfully",
-                "payment": {
-                    "id": payment.id,
-                    "patient_name": patient.name,
-                    "service": payment.service,
-                    "amount": float(payment.amount),
-                    "payment_method": payment.payment_method
-                },
-                "stk_response": stk_response
-            }), 200
-        else:
-            print(f"MPESA Error Response: {stk_response}")
-            return jsonify({"error": "Failed to initiate MPESA STK Push", "details": stk_response}), 400
-
-    except Exception as e:
-        print(f"Error in MPESA STK Push route: {str(e)}")
-        return jsonify({"error": "An error occurred while processing the MPESA request", "details": str(e)}), 500
 
 
 if __name__ == '__main__':

@@ -1,83 +1,67 @@
 from app import app, db
-from models import  Doctor, Staff, TestReport, LabTech, Patient, Appointment, Test, Consultation, ConsultationNotes, DiagnosisNotes, Diagnosis, Prescription, Payment, TestType, Medicine
-
-# Import random, Faker, datetime, and timedelta
+from models import Doctor, Staff, TestReport, LabTech, Patient, Appointment, Test, Consultation, ConsultationNotes, DiagnosisNotes, Diagnosis, Prescription, Payment, TestType, Medicine
 import random
 from faker import Faker
 from datetime import datetime, timedelta
 
 fake = Faker()
 
-# Helper function to drop all tables (clear the database)
+specialties = [
+    "Cardiology", "Dermatology", "Neurology", "Pediatrics", "Orthopedics",
+    "Ophthalmology", "Psychiatry", "Radiology", "Gastroenterology", "Endocrinology"
+]
+
+conditions = [
+    'Hypertension', 'Diabetes', 'Asthma', 'Chronic Back Pain', 'Migraine', 'Anemia', 'Arthritis', 'Allergies'
+]
+
 def drop_all_tables():
     with app.app_context():
         db.drop_all()  # Drops all tables in the database
-        print("All tables dropped successfully.")
-
-
-
-# Helper function to create doctors
-specialties = [
-    "Cardiology",
-    "Dermatology",
-    "Neurology",
-    "Pediatrics",
-    "Orthopedics",
-    "Ophthalmology",
-    "Psychiatry",
-    "Radiology",
-    "Gastroenterology",
-    "Endocrinology"
-]
+        db.create_all()  # Creates all tables in the database
+        print("All tables dropped and recreated successfully.")
 
 def create_doctors():
-    for i in range(10):  # Create 10 doctors
+    for _ in range(10):  # Create 10 doctors
         doctor = Doctor(
             name=fake.name(),
             email=fake.email(),
             phone_number=fake.phone_number(),
-            speciality=random.choice(specialties)  # Randomly assign a specialty
+            speciality=random.choice(specialties)
         )
         db.session.add(doctor)
     db.session.commit()
     print("Doctors created successfully.")
 
-def create_staff():
+def create_staffs():
+    roles = ['Receptionist', 'Doctor', 'Lab Technician', 'Admin']
+    
     for i in range(10):  # Create 10 staff members
         staff = Staff(
             name=fake.name(),
             email=fake.email(),
             phone_number=fake.phone_number(),
-            role=fake.job()
+            role=random.choice(roles)  # Randomly select a role from the predefined list
         )
         db.session.add(staff)
+    
     db.session.commit()
-    print("Staff created successfully.")
+    print("Staffs created successfully.")
 
 
-
-# Helper function to create lab techs
 def create_lab_techs():
-    for i in range(5):  # Create 5 lab techs
+    for _ in range(5):  # Create 5 lab techs
         lab_tech = LabTech(
             name=fake.name(),
             email=fake.email(),
             phone_number=fake.phone_number(),
-            )
+        )
         db.session.add(lab_tech)
     db.session.commit()
     print("LabTechs created successfully.")
 
-# Helper function to create patients
-
 def create_patients():
-    conditions = [
-        'Hypertension', 'Diabetes', 'Asthma', 'Chronic Back Pain', 'Migraine', 'Anemia', 'Arthritis', 'Allergies'
-    ]
-    
-    # Create 20 patients
-    for i in range(20):
-        # Create a new patient
+    for _ in range(20):  # Create 20 patients
         patient = Patient(
             name=fake.name(),
             date_of_birth=fake.date_of_birth(minimum_age=18, maximum_age=80),
@@ -87,56 +71,69 @@ def create_patients():
             gender=random.choice(['Male', 'Female']),
             medical_history=random.choice(conditions)
         )
-        
-        # Add the patient to the session and commit to get the patient ID
         db.session.add(patient)
-        db.session.commit()  # Ensure the patient is committed to the DB before continuing
+        db.session.commit()
 
-        # Now the patient has a valid ID, so create the associated records
-        # Create a consultation for this patient
-        consultation = Consultation(
-            patient_id=patient.id,  # Use the committed patient ID
-            doctor_id=random.choice([doctor.id for doctor in Doctor.query.all()]),  # Randomly pick a doctor
-            consultation_date=fake.date_this_year()
+        # Create an appointment for the patient first
+        doctor = random.choice(Doctor.query.all())  # Random doctor
+        appointment_date = fake.date_this_year()
+        appointment_time_str = fake.time()[:5]  # Truncate to 'HH:MM'
+
+        # Convert time to 12-hour format
+        appointment_time_12hr = datetime.strptime(appointment_time_str, '%H:%M').strftime('%I:%M %p')
+        appointment_time = datetime.strptime(appointment_time_12hr, '%I:%M %p').time()
+
+        appointment = Appointment(
+            patient_id=patient.id,
+            doctor_id=doctor.id,
+            appointment_date=appointment_date,
+            appointment_time=appointment_time
         )
-        
-        # Add consultation to the session and commit to get consultation_id
+        db.session.add(appointment)
+        db.session.commit()  # Ensure the appointment is committed before proceeding
+
+        # Now create consultation for the patient with the appointment_id
+        consultation = Consultation(
+            patient_id=patient.id,
+            doctor_id=doctor.id,
+            consultation_date=fake.date_this_year(),
+            appointment_id=appointment.id  # Link consultation to the created appointment
+        )
         db.session.add(consultation)
-        db.session.commit()  # Ensure the consultation has a valid ID
-        
-        # Create consultation notes for this consultation
+        db.session.commit()
+
+        # Create consultation notes
         consultation_notes = ConsultationNotes(
-            patient_id=patient.id,  # Use the patient ID
+            patient_id=patient.id,
+            consultation_id=consultation.id,
             notes=fake.text(),
-            consultation_id=consultation.id,  # Use the consultation ID
             created_at=datetime.utcnow()
         )
         db.session.add(consultation_notes)
         db.session.commit()
 
-        # Create diagnosis for the patient
+        # Create diagnosis
         diagnosis = Diagnosis(
-            patient_id=patient.id,  # Use the patient ID
-            doctor_id=random.choice([doctor.id for doctor in Doctor.query.all()]),  # Randomly pick a doctor
-            created_at=datetime.utcnow()
+            patient_id=patient.id,
+            doctor_id=doctor.id,
+            created_at=datetime.utcnow(),
+            appointment_id=appointment.id  # Link diagnosis to the created appointment
         )
         db.session.add(diagnosis)
         db.session.commit()
 
-        # Create diagnosis notes for the diagnosis
+        # Create diagnosis notes
         diagnosis_notes = DiagnosisNotes(
-            patient_id=patient.id,  # Use the patient ID
+            patient_id=patient.id,
+            diagnosis_id=diagnosis.id,
             notes=fake.text(),
-            diagnosis_id=diagnosis.id,  # Use the diagnosis ID
             created_at=datetime.utcnow()
         )
-        
         db.session.add(diagnosis_notes)
         db.session.commit()
-    
+
     print("Patients and associated data created successfully.")
 
-# Helper function to create medicines
 def create_medicines():
     medicines = [
         ('Paracetamol', 'Used to relieve pain and reduce fever'),
@@ -147,63 +144,40 @@ def create_medicines():
         ('Aspirin', 'Used to reduce pain, fever, and inflammation'),
         ('Lisinopril', 'Used to treat high blood pressure and heart failure')
     ]
-
     for name, description in medicines:
-        existing_medicine = Medicine.query.filter_by(name=name).first()
-        if not existing_medicine:
-            medicine = Medicine(
-                name=name,
-                description=description
-            )
+        if not Medicine.query.filter_by(name=name).first():
+            medicine = Medicine(name=name, description=description)
             db.session.add(medicine)
     db.session.commit()
     print("Medicines created successfully.")
 
-# Helper function to create appointments
-# Helper function to create appointments
 def create_appointments():
-    # Delete all existing appointments before creating new ones
-    Appointment.query.delete()  # This removes all existing appointment data
-
     patients = Patient.query.all()
     doctors = Doctor.query.all()
 
-    for i in range(5):  # Create 5 appointments
-        # Generate the date once for the appointment (without the time part)
-        appointment_date = fake.date_this_year()  # Generates only the date (no time)
-        
-        # Generate a random time string (in 24-hour format, e.g., '16:30:53')
-        appointment_time_str_24hr = fake.time()  # Format like '16:30:53'
+    for _ in range(5):  # Create 5 appointments
+        patient = random.choice(patients)
+        doctor = random.choice(doctors)
 
-        # Strip the seconds from the time string to get 'HH:MM'
-        appointment_time_str_24hr = appointment_time_str_24hr[:5]  # Truncate to 'HH:MM'
+        appointment_date = fake.date_this_year()
+        appointment_time_str = fake.time()[:5]  # Truncate to 'HH:MM'
 
-        # Convert the 24-hour time string to 12-hour format with AM/PM
-        appointment_time_12hr = datetime.strptime(appointment_time_str_24hr, '%H:%M').strftime('%I:%M %p')
-
-        # Convert the time string in 12-hour format to a Python time object
-        # Using '%I:%M %p' (AM/PM) ensures it correctly handles times in both AM and PM
+        # Convert time to 12-hour format
+        appointment_time_12hr = datetime.strptime(appointment_time_str, '%H:%M').strftime('%I:%M %p')
         appointment_time = datetime.strptime(appointment_time_12hr, '%I:%M %p').time()
 
-        # Create the appointment object with the new date and time
         appointment = Appointment(
-            patient_id=random.choice(patients).id,
-            doctor_id=random.choice(doctors).id,
-            appointment_date=appointment_date,  # This is a 'date' type field
-            appointment_time=appointment_time,  # This is a 'time' type field
+            patient_id=patient.id,
+            doctor_id=doctor.id,
+            appointment_date=appointment_date,
+            appointment_time=appointment_time
         )
-        
-        # Add the appointment to the session
         db.session.add(appointment)
-    
-    # Commit the changes to the database
     db.session.commit()
-    print("5 Appointments created successfully.")
-def create_consultations():
-    patients = Patient.query.all()
-    doctors = Doctor.query.all()
+    print("Appointments created successfully.")
 
-    consultation_notes = [
+def create_consultations():
+    consultations_notes = [
         "Patient presents with a headache and dizziness. Recommended further tests.",
         "Patient shows signs of chronic back pain. Suggested physical therapy.",
         "Patient reports feeling fatigued. Blood tests suggested for anemia.",
@@ -211,124 +185,127 @@ def create_consultations():
         "Patient has a persistent cough. Possible asthma attack. Medication prescribed."
     ]
 
-    for i in range(5):  # Create 5 consultations
+    patients = Patient.query.all()
+    doctors = Doctor.query.all()
+    appointments = Appointment.query.all()  # Get all appointments
+
+    for _ in range(5):
         patient = random.choice(patients)
         doctor = random.choice(doctors)
-        
-        # Create the consultation object
+
+        # Ensure there's an appointment to link to the consultation
+        appointment = random.choice(appointments)
+
         consultation = Consultation(
             patient_id=patient.id,
             doctor_id=doctor.id,
-            consultation_date=fake.date_this_year()
+            consultation_date=fake.date_this_year(),
+            appointment_id=appointment.id  # Set appointment_id to link the consultation
         )
         db.session.add(consultation)
-        db.session.commit()  # Commit so we have a valid consultation.id
+        db.session.commit()
 
-        # Now, create consultation notes for the consultation
-        consultation_notes_object = ConsultationNotes(
-            consultation_id=consultation.id,  # Link to the consultation
-            notes=random.choice(consultation_notes),  # Randomly pick a note from the list
+        consultation_notes = ConsultationNotes(
+            consultation_id=consultation.id,
+            notes=random.choice(consultations_notes),
             created_at=datetime.utcnow(),
             patient_id=patient.id
         )
-        db.session.add(consultation_notes_object)
-        db.session.commit()  # Commit the consultation notes
-
-    db.session.commit()
-    print("Consultations created successfully.")
-
-
-# Helper function to create diagnoses
+        db.session.add(consultation_notes)
+        db.session.commit()
 def create_diagnoses():
-    conditions = [
-        'Hypertension', 'Diabetes', 'Asthma', 'Chronic Back Pain', 'Migraine', 'Anemia', 'Arthritis', 'Allergies'
-    ]
     patients = Patient.query.all()
     doctors = Doctor.query.all()
 
-    for i in range(5):  # Create 5 diagnoses
+    for _ in range(5):
         patient = random.choice(patients)
         doctor = random.choice(doctors)
-        
-        # Create the diagnosis object
+
+        # Ensure the patient has at least one appointment
+        appointment = Appointment.query.filter_by(patient_id=patient.id).first()  # Get an appointment for the patient
+
+        if not appointment:
+            print(f"Skipping diagnosis creation for patient {patient.id} as no appointment exists.")
+            continue  # Skip this patient if no appointment is found
+
+        # Create diagnosis and ensure appointment_id is valid
         diagnosis = Diagnosis(
             patient_id=patient.id,
             doctor_id=doctor.id,
             diagnosis_description=random.choice(conditions),
-            created_at=fake.date_this_year()
+            created_at=fake.date_this_year(),
+            appointment_id=appointment.id  # Link diagnosis to the appointment
         )
         db.session.add(diagnosis)
-        db.session.commit()  # Commit so we have a valid diagnosis.id
+        db.session.commit()
 
-        # Now, create diagnosis notes for the diagnosis
+        # Create diagnosis notes for the diagnosis
         diagnosis_notes = DiagnosisNotes(
-            diagnosis_id=diagnosis.id,  # Link to the diagnosis
-            notes=fake.text(),  # Randomly generated notes for the diagnosis
+            diagnosis_id=diagnosis.id,
+            notes=fake.text(),
             created_at=datetime.utcnow(),
             patient_id=patient.id
         )
         db.session.add(diagnosis_notes)
-        db.session.commit()  # Commit the diagnosis notes
+        db.session.commit()
 
-    db.session.commit()
     print("Diagnoses created successfully.")
-
-
-# Helper function to create prescriptions
 def create_prescriptions():
-    # Delete all existing prescriptions before creating new ones
-    Prescription.query.delete()
+    medicines = Medicine.query.all()
+    appointments = Appointment.query.all()
+    patients = Patient.query.all()
+    doctors = Doctor.query.all()
 
-    # Fetch all required data from the database
-    medicines, appointments, patients, doctors = Medicine.query.all(), Appointment.query.all(), Patient.query.all(), Doctor.query.all()
-
-    # Ensure all required data is present
-    if not all([medicines, appointments, patients, doctors]):
-        print("Insufficient data in one or more tables.")
-        return
-
-    # Helper function to generate random dosage
     def get_random_dosage():
         return f"{random.randint(1, 3)} {random.choice(['mg', 'g', 'ml', 'tablet', 'capsules'])}"
 
-    # Generate 5 prescriptions
-    prescriptions = [
-        Prescription(
-            appointment_id=random.choice(appointments).id,
-            patient_id=random.choice(patients).id,
-            doctor_id=random.choice(doctors).id,
+    prescriptions = []
+    for appointment in appointments:
+        # Ensure the doctor and patient are correctly linked to the appointment
+        doctor = appointment.doctor
+        patient = appointment.patient
+
+        prescription = Prescription(
+            appointment_id=appointment.id,
+            patient_id=patient.id,
+            doctor_id=doctor.id,
             medicine_id=random.choice(medicines).id,
             dosage=get_random_dosage(),
             quantity=random.randint(1, 5),
             duration=random.randint(7, 14),
             prescription_date=fake.date_this_year()
         )
-        for _ in range(5)
-    ]
 
-    # Add all prescriptions to the session and commit
+        prescriptions.append(prescription)
+
     db.session.add_all(prescriptions)
     db.session.commit()
+    print("Prescriptions created successfully.")
 
-    print("5 new prescriptions have been created successfully.")
-
-# Helper function to create payments
 def create_payments():
     patients = Patient.query.all()
+    appointments = Appointment.query.all()  # Get all appointments
 
-    for i in range(5):  # Create 5 payments
+    for _ in range(5):
+        patient = random.choice(patients)
+        
+        # Ensure the patient has at least one appointment
+        appointment = random.choice([a for a in appointments if a.patient_id == patient.id])
+
         payment = Payment(
-            patient_id=random.choice(patients).id,
+            patient_id=patient.id,
             service=random.choice(['Consultation', 'Lab Test', 'X-Ray', 'Blood Test']),
             amount=random.randint(100, 500),
-            payment_method=random.choice(['cash', 'mpesa'])
+            payment_method=random.choice(['cash', 'mpesa']),
+            appointment_id=appointment.id  # Associate payment with a valid appointment
         )
         db.session.add(payment)
     db.session.commit()
     print("Payments created successfully.")
 
+
 def create_test_types():
-    test_types_data = [
+    test_types = [
         ('Blood Test', 'Test to check various blood parameters', 50.0),
         ('X-Ray', 'Imaging test to examine bones and tissues', 100.0),
         ('MRI Scan', 'Magnetic resonance imaging for detailed body scans', 200.0),
@@ -338,14 +315,9 @@ def create_test_types():
         ('Ultrasound', 'Imaging test using sound waves to view organs', 120.0)
     ]
 
-    for test_name, description, price in test_types_data:
-        existing_test_type = TestType.query.filter_by(test_name=test_name).first()
-        if not existing_test_type:
-            test_type = TestType(
-                test_name=test_name,
-                description=description,
-                price=price
-            )
+    for name, description, price in test_types:
+        if not TestType.query.filter_by(test_name=name).first():
+            test_type = TestType(test_name=name, description=description, price=price)
             db.session.add(test_type)
     db.session.commit()
     print("Test Types created successfully.")
@@ -353,67 +325,59 @@ def create_test_types():
 def create_tests():
     patients = Patient.query.all()
     doctors = Doctor.query.all()
-    lab_techs = LabTech.query.all()
     test_types = TestType.query.all()
+    lab_techs = LabTech.query.all()
+    appointments = Appointment.query.all()
 
-    statuses = ['pending', 'completed']
+    for _ in range(5):  # Create 5 tests
+        patient = random.choice(patients)
+        doctor = random.choice(doctors)
+        test_type = random.choice(test_types)
+        lab_tech = random.choice(lab_techs)
 
-    for i in range(10):  # Create 10 test records
+        # Ensure that a valid appointment exists for the patient
+        appointment = random.choice([a for a in appointments if a.patient_id == patient.id])
+
+        # Ensure the doctor in the appointment matches the randomly selected doctor
+        doctor_for_appointment = appointment.doctor
+
+        # Create the test and include the appointment_id
         test = Test(
-            patient_id=random.choice(patients).id,
-            doctor_id=random.choice(doctors).id,
-            lab_tech_id=random.choice(lab_techs).id,
-            test_types_id=random.choice(test_types).id,
-            status=random.choice(statuses),
-            test_results=fake.text(max_nb_chars=100),  # Random test results for demonstration
-            created_at=fake.date_this_year()
+            patient_id=patient.id,
+            doctor_id=doctor_for_appointment.id,  # Correctly link to the appointment's doctor
+            test_types_id=test_type.id,
+            lab_tech_id=lab_tech.id,
+            created_at=fake.date_this_year(),
+            appointment_id=appointment.id  # Link the test to the appointment
         )
         db.session.add(test)
+
     db.session.commit()
     print("Tests created successfully.")
 
 def create_test_reports():
-    # Fetch existing Test entries for creating TestReports
     tests = Test.query.all()
-
-    if not tests:
-        print("No tests available to seed reports. Please seed tests first.")
-        return
-    
-
-    test_reports = []
-
-    for i in range(5):  # Create 5 TestReports
-        test = fake.random_element(tests)  # Select a random test from existing entries
-        parameter = fake.word().capitalize()  # Fake test parameter
-        result = f"{fake.random_int(min=1, max=200)} {fake.random_element(['mg/dL', 'g/dL', 'mL/min'])}"  # Fake test result
-        remark = fake.random_element(['Normal', 'High', 'Low', None])  # Random remark, sometimes None
-        created_at = datetime.now()
-
+    for test in tests:
         test_report = TestReport(
             test_id=test.id,
-            parameter=parameter,
-            result=result,
-            remark=remark,
-            created_at=created_at
+            parameter=fake.word(),  # Example: Hemoglobin, Cholesterol, etc.
+            result=fake.word(),      # Example: 12.3 g/dL, 200 mg/dL, etc.
+            remark=random.choice(['Normal', 'High', 'Low', 'Critical']),  # Example remarks
+            created_at=datetime.utcnow()  # Timestamp for when the report was created
         )
-
-        test_reports.append(test_report)
-
-    # Save all TestReports in bulk
-    db.session.bulk_save_objects(test_reports)
+        db.session.add(test_report)
     db.session.commit()
-    print("Test reports seeded successfully.")
+    print("Test reports created successfully.")
 
 
-# Main function to seed the database
-def seed_data():
-    drop_all_tables()  # Drop all tables before reseeding
-    db.create_all()    # Recreate all tables
-    create_doctors()
+
+def seed_database():
+    drop_all_tables()  # First drop and recreate tables
+    create_doctors()  # Now we can safely insert into the doctors table
+    create_staffs()
     create_lab_techs()
     create_patients()
-    create_medicines()  
+    create_medicines()
     create_appointments()
     create_consultations()
     create_diagnoses()
@@ -421,9 +385,8 @@ def seed_data():
     create_payments()
     create_test_types()
     create_tests()
-    create_staff()
     create_test_reports()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     with app.app_context():
-        seed_data()
+        seed_database()

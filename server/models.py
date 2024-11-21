@@ -73,27 +73,26 @@ class Patient(db.Model, SerializerMixin):  # Table: 'patients'
     date_of_birth = db.Column(db.DateTime, nullable=False)
     phone_number = db.Column(db.String, nullable=False, unique=True)
     email = db.Column(db.String, nullable=False, unique=True)
-    address = db.Column(db.String, nullable=False,default="")
+    address = db.Column(db.String, nullable=False, default="")
     gender = db.Column(db.String, nullable=False)
     medical_history = db.Column(db.String)
     
-
     # Relationships
-    appointments = db.relationship('Appointment', back_populates='patient',cascade="all, delete-orphan")
-    tests = db.relationship('Test', back_populates='patient',cascade="all, delete-orphan")
-    prescriptions = db.relationship('Prescription', back_populates='patient',cascade="all, delete-orphan")
-    payments = db.relationship('Payment', back_populates='patient',cascade="all, delete-orphan")
-    consultations = db.relationship('Consultation', back_populates='patient',cascade="all, delete-orphan")
-    diagnosis = db.relationship('Diagnosis', back_populates='patient',cascade="all, delete-orphan")
-    consultation_notes = db.relationship('ConsultationNotes', back_populates='patient',cascade="all, delete-orphan")
-    diagnosis_notes = db.relationship('DiagnosisNotes', back_populates='patient',cascade="all, delete-orphan")
+    appointments = db.relationship('Appointment', back_populates='patient', cascade="all, delete-orphan")
+    tests = db.relationship('Test', back_populates='patient', cascade="all, delete-orphan")
+    prescriptions = db.relationship('Prescription', back_populates='patient', cascade="all, delete-orphan")
+    payments = db.relationship('Payment', back_populates='patient', cascade="all, delete-orphan")
+    consultations = db.relationship('Consultation', back_populates='patient', cascade="all, delete-orphan")
+    diagnosis = db.relationship('Diagnosis', back_populates='patient', cascade="all, delete-orphan")
+    consultation_notes = db.relationship('ConsultationNotes', back_populates='patient', cascade="all, delete-orphan")
+    diagnosis_notes = db.relationship('DiagnosisNotes', back_populates='patient', cascade="all, delete-orphan")
 
     serialize_rules = ('-appointments.patient', '-tests.patient', '-diagnosis.patient', '-prescriptions.patient', '-payments.patient', '-consultations.patient', '-consultation_notes.patient', '-diagnosis_notes.patient')  # Updated serialization rules
 
 
 
 # Appointment Model
-class Appointment(db.Model, SerializerMixin):  # Table: 'appointments'
+class Appointment(db.Model, SerializerMixin):
     __tablename__ = 'appointments'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -101,15 +100,20 @@ class Appointment(db.Model, SerializerMixin):  # Table: 'appointments'
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'), nullable=False)
     appointment_time = db.Column(db.Time, nullable=False)
     appointment_date = db.Column(db.Date, nullable=False)
+
     # Relationships
     patient = db.relationship('Patient', back_populates='appointments')
     doctor = db.relationship('Doctor', back_populates='appointments')
+    tests = db.relationship('Test', back_populates='appointment', cascade="all, delete-orphan")
+    consultations = db.relationship('Consultation', back_populates='appointment', cascade="all, delete-orphan")
+    diagnoses = db.relationship('Diagnosis', back_populates='appointment', cascade="all, delete-orphan")
+    prescriptions = db.relationship('Prescription', back_populates='appointment', cascade="all, delete-orphan")
+    payments = db.relationship('Payment', back_populates='appointment', cascade="all, delete-orphan")
 
     serialize_rules = ('-patient.appointments', '-doctor.appointments')
 
-
 # Test Model
-class Test(db.Model, SerializerMixin):  # Table: 'tests'
+class Test(db.Model, SerializerMixin):
     __tablename__ = 'tests'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -120,6 +124,7 @@ class Test(db.Model, SerializerMixin):  # Table: 'tests'
     status = db.Column(Enum('pending', 'completed', name='test_status'), nullable=False, server_default='pending')
     test_results = db.Column(db.String, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)  # Set nullable=True
 
     # Relationships
     patient = db.relationship('Patient', back_populates='tests')
@@ -127,9 +132,9 @@ class Test(db.Model, SerializerMixin):  # Table: 'tests'
     test_types = db.relationship('TestType', back_populates='tests')
     doctor = db.relationship('Doctor', back_populates='tests')
     test_reports = db.relationship('TestReport', back_populates='test')
+    appointment = db.relationship('Appointment', back_populates='tests')
 
     serialize_only = ('id', 'patient.name', 'doctor.name', 'lab_tech.name', 'test_types.test_name', 'status', 'created_at')
-
 
 # TestTypes Model
 class TestType(db.Model, SerializerMixin):  # Table: 'test_types'
@@ -154,16 +159,19 @@ class Consultation(db.Model, SerializerMixin):  # Table: 'consultations'
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'), nullable=False)
     consultation_date = db.Column(db.DateTime, nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
     
     # Relationships
     patient = db.relationship('Patient', back_populates='consultations')  # Reverse relationship to Patient
     doctor = db.relationship('Doctor', back_populates='consultations')
     consultation_notes = db.relationship('ConsultationNotes', back_populates='consultation')
+    appointment = db.relationship('Appointment', back_populates='consultations')
 
     serialize_only = (
         'id', 'patient_id', 'doctor_id', 'consultation_date',
         'patient.name'
     )
+
 
 
 class ConsultationNotes(db.Model, SerializerMixin):
@@ -189,17 +197,20 @@ class Diagnosis(db.Model, SerializerMixin):  # Table: 'diagnosis'
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'), nullable=False)
-    diagnosis_description = db.Column(db.String(255)) 
+    diagnosis_description = db.Column(db.String(255),nullable=True) 
     created_at = db.Column(db.DateTime, nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
 
     # Relationships
     patient = db.relationship('Patient', back_populates='diagnosis')
     doctor = db.relationship('Doctor', back_populates='diagnosis')
     diagnosis_notes = db.relationship('DiagnosisNotes', back_populates='diagnosis')
+    appointment = db.relationship('Appointment', back_populates='diagnoses')
+    # diagnosis_date = Column(DateTime, nullable=False)
 
     serialize_only = (
         'id', 'patient_id', 'doctor_id', 
-        'created_at','diagnosis_description'
+        'created_at', 'diagnosis_description'
     )
 
 
@@ -238,6 +249,7 @@ class Prescription(db.Model, SerializerMixin):  # Table: 'prescriptions'
     patient = db.relationship('Patient', back_populates='prescriptions')
     doctor = db.relationship('Doctor', back_populates='prescriptions')
     medicine = db.relationship('Medicine', back_populates='prescriptions')
+    appointment = db.relationship('Appointment', back_populates='prescriptions')
 
     serialize_only = (
         'id', 'appointment_id', 'patient_id', 'doctor_id', 'medicine_id',
@@ -267,13 +279,14 @@ class Payment(db.Model, SerializerMixin):  # Table: 'payments'
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     service = db.Column(db.String, nullable=False)
     amount = db.Column(db.Numeric, nullable=False)
-    payment_method = db.Column(db.String, nullable=False) 
-    
+    payment_method = db.Column(db.String, nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
 
     # Relationships
     patient = db.relationship('Patient', back_populates='payments')
+    appointment = db.relationship('Appointment', back_populates='payments')
 
-    serialize_rules = ('-patient.payments', )
+    serialize_rules = ('-patient.payments',)  # Don't serialize the payments when serializing the patient object
 
 class TestReport(db.Model, SerializerMixin):  # Table: 'test_reports'
     __tablename__ = 'test_reports'
