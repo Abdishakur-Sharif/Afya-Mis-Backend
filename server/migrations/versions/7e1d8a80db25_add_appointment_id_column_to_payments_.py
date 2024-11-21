@@ -1,8 +1,8 @@
-"""Initial commit
+"""Add appointment_id column to payments table
 
-Revision ID: a04d702a8e50
+Revision ID: 7e1d8a80db25
 Revises: 
-Create Date: 2024-11-20 21:15:06.413328
+Create Date: 2024-11-21 02:19:32.842640
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'a04d702a8e50'
+revision = '7e1d8a80db25'
 down_revision = None
 branch_labels = None
 depends_on = None

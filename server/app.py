@@ -1,7 +1,7 @@
 import socketio
 from models import db, Doctor, Staff, Diagnosis, TestReport,  LabTech, Patient, Payment, Consultation, Prescription, Medicine, Test, TestType, Appointment, ConsultationNotes, DiagnosisNotes
 from flask_migrate import Migrate
-from flask import Flask, request, make_response, jsonify, abort
+from flask import Flask, request , make_response, jsonify, abort
 from flask_restful import Api, Resource
 from flask_migrate import Migrate
 from flask_cors import CORS 
@@ -10,6 +10,7 @@ from flask_socketio import SocketIO, emit
 from faker import Faker
 import random
 
+import base64
 
 from datetime import datetime
 
@@ -29,6 +30,7 @@ api = Api(app)
 
 CORS(app)
 
+
 # Index route
 class Index(Resource):
     def get(self):
@@ -36,6 +38,93 @@ class Index(Resource):
         return make_response(response_dict, 200)
 
 api.add_resource(Index, '/')
+
+class DoctorsResource(Resource):
+    def get(self, doctor_id=None):
+        if doctor_id:
+            # Fetch a specific doctor by ID if provided
+            doctor = Doctor.query.get(doctor_id)
+            if not doctor:
+                return make_response({"message": f"Doctor with ID {doctor_id} not found"}, 404)
+            
+            # Serialize the doctor data
+            doctor_data = {
+                "id": doctor.id,
+                "name": doctor.name,
+                "email": doctor.email,
+                "phone_number": doctor.phone_number,
+                "speciality": doctor.speciality 
+            }
+            
+            return make_response(doctor_data, 200)
+        
+        # Fetch all doctors if no ID is provided
+        doctors = Doctor.query.all()
+        if not doctors:
+            return make_response({"message": "No doctors found"}, 404)
+        
+        # Serialize all doctor data
+        doctors_data = [{
+            "id": doctor.id,
+            "name": doctor.name,
+            "email": doctor.email,
+            "phone_number": doctor.phone_number,
+            "speciality": doctor.speciality 
+        } for doctor in doctors]
+        
+        return make_response(doctors_data, 200)
+
+    def post(self):
+        # Extract data from the request JSON
+        data = request.get_json()
+        
+        # Validate required fields
+        name = data.get("name")
+        email = data.get("email")
+        phone_number = data.get("phone_number")
+        speciality = data.get("speciality") 
+        
+        if not all([name, email, phone_number]):
+            return make_response({"message": "Missing required fields"}, 400)
+        
+        # Create a new Doctor record
+        new_doctor = Doctor(
+            name=name,
+            email=email,
+            phone_number=phone_number,
+            speciality=speciality 
+        )
+        
+        # Add the new record to the session and commit
+        db.session.add(new_doctor)
+        db.session.commit()
+        
+        # Return the created doctor data as a response
+        response_data = {
+            "id": new_doctor.id,
+            "name": new_doctor.name,
+            "email": new_doctor.email,
+            "phone_number": new_doctor.phone_number,
+            "speciality": new_doctor.speciality 
+        }
+        
+        return make_response(response_data, 201)
+
+    def delete(self, doctor_id):
+        # Fetch the doctor to delete by ID
+        doctor = Doctor.query.get(doctor_id)
+        if not doctor:
+            return make_response({"message": f"Doctor with ID {doctor_id} not found"}, 404)
+        
+        # Delete the doctor
+        db.session.delete(doctor)
+        db.session.commit()
+
+        return make_response({"message": f"Doctor with ID {doctor_id} has been deleted."}, 200)
+        
+# Add the resource routes
+api.add_resource(DoctorsResource, '/doctors', '/doctors/<int:doctor_id>')
+
 
 class Consultations(Resource):
     def get(self, consultation_id=None):
@@ -910,7 +999,6 @@ def get_test(id):
 
 @app.route('/tests', methods=['POST'])
 def create_test():
-    # Get the data from the request
     data = request.get_json()
 
     # Validate required fields
@@ -1013,7 +1101,7 @@ def update_test(test_id):
     # Commit the changes to the database
     db.session.commit()
 
-    # Return the updated test data
+    # Return the updated test data (without appointment_id)
     return jsonify({
         'id': test.id,
         'created_at': test.created_at,
@@ -1024,7 +1112,6 @@ def update_test(test_id):
         'lab_tech': {'name': test.lab_tech.name},
         'test_types': {'test_name': test.test_types.test_name}
     }), 200
-
 
 @app.route('/tests/<int:test_id>', methods=['DELETE'])
 def delete_test(test_id):
@@ -1139,26 +1226,23 @@ def update_staff(staff_id):
 
 @app.route('/staffs/<int:staff_id>', methods=['DELETE'])
 def delete_staff(staff_id):
-    # Find the staff member
     staff = Staff.query.get(staff_id)
     if not staff:
         return jsonify({'message': 'Staff member not found'}), 404
 
-    # Delete the staff member
     db.session.delete(staff)
     db.session.commit()
-
     return jsonify({'message': 'Staff member deleted successfully'}), 200
 
+
+# Routes for Lab Technician Management
 @app.route('/lab_techs', methods=['GET'])
 def get_lab_techs():
     lab_techs = LabTech.query.all()
-    return jsonify([{
-        'id': lab_tech.id,
-        'name': lab_tech.name,
-        'email': lab_tech.email,
-        'phone_number': lab_tech.phone_number
-    } for lab_tech in lab_techs]), 200
+    return jsonify([
+        {'id': lab_tech.id, 'name': lab_tech.name, 'email': lab_tech.email, 'phone_number': lab_tech.phone_number}
+        for lab_tech in lab_techs
+    ]), 200
 
 
 @app.route('/lab_techs/<int:lab_tech_id>', methods=['GET'])
@@ -1174,24 +1258,21 @@ def get_lab_tech_by_id(lab_tech_id):
         'phone_number': lab_tech.phone_number
     }), 200
 
+
 @app.route('/lab_techs', methods=['POST'])
 def create_lab_tech():
     data = request.get_json()
-    
-    # Validate required fields
     required_fields = ['name', 'email', 'phone_number']
     for field in required_fields:
         if field not in data:
             return jsonify({'message': f'Missing required field: {field}'}), 400
 
-    # Check if the email and phone number already exist
     if LabTech.query.filter_by(email=data['email']).first():
         return jsonify({'message': 'Email already exists'}), 400
 
     if LabTech.query.filter_by(phone_number=data['phone_number']).first():
         return jsonify({'message': 'Phone number already exists'}), 400
 
-    # Create the new lab tech
     new_lab_tech = LabTech(
         name=data['name'],
         email=data['email'],
@@ -1204,37 +1285,26 @@ def create_lab_tech():
     return jsonify({
         'id': new_lab_tech.id,
         'name': new_lab_tech.name,
-        'phone_number': new_lab_tech.phone_number,
-        'email': new_lab_tech.email
+        'email': new_lab_tech.email,
+        'phone_number': new_lab_tech.phone_number
     }), 201
+
 
 @app.route('/lab_techs/<int:id>', methods=['PATCH'])
 def update_lab_tech(id):
     data = request.get_json()
-
-    # Find the lab tech by ID
     lab_tech = LabTech.query.get(id)
     if not lab_tech:
         return jsonify({'message': 'Lab Tech not found'}), 404
 
-    # Update fields if they exist in the request data
     if 'name' in data:
         lab_tech.name = data['name']
-    if 'email' in data:
-        # Check if the new email is already used
-        if LabTech.query.filter_by(email=data['email']).first():
-            return jsonify({'message': 'Email already exists'}), 400
+    if 'email' in data and LabTech.query.filter_by(email=data['email']).first() is None:
         lab_tech.email = data['email']
-    if 'phone_number' in data:
-        # Check if the new phone number is already used
-        if LabTech.query.filter_by(phone_number=data['phone_number']).first():
-            return jsonify({'message': 'Phone number already exists'}), 400
+    if 'phone_number' in data and LabTech.query.filter_by(phone_number=data['phone_number']).first() is None:
         lab_tech.phone_number = data['phone_number']
 
-    # Commit the changes to the database
     db.session.commit()
-
-    # Return the updated lab tech data
     return jsonify({
         'id': lab_tech.id,
         'name': lab_tech.name,
@@ -1242,107 +1312,93 @@ def update_lab_tech(id):
         'phone_number': lab_tech.phone_number
     }), 200
 
+
 @app.route('/lab_techs/<int:id>', methods=['DELETE'])
 def delete_lab_tech(id):
-    # Find the lab tech by ID
     lab_tech = LabTech.query.get(id)
     if not lab_tech:
         return jsonify({'message': 'Lab Tech not found'}), 404
 
-    # Delete the lab tech
     db.session.delete(lab_tech)
     db.session.commit()
-
-    # Return a success message
     return jsonify({'message': 'Lab Tech deleted successfully'}), 200
 
 
+# Routes for Test Report Management
 @app.route('/test_reports', methods=['POST'])
 def create_test_report():
     data = request.get_json()
-    
     test_id = data.get('test_id')
-    parameter = data.get('parameter', fake.word())  # Default to a random word
-    result = data.get('result', fake.word())  # Default to a random word
-    remark = data.get('remark', random.choice(['Normal', 'High', 'Low', 'Critical']))
-    
-    # Check if the test exists
     test = Test.query.get(test_id)
     if not test:
-        return jsonify({"message": "Test not found"}), 404
-    
+        return jsonify({'message': 'Test not found'}), 404
+
     test_report = TestReport(
         test_id=test.id,
-        parameter=parameter,
-        result=result,
-        remark=remark,
+        parameter=data.get('parameter', 'Default Parameter'),
+        result=data.get('result', 'Default Result'),
+        remark=data.get('remark', 'Normal'),
         created_at=datetime.utcnow()
     )
     db.session.add(test_report)
     db.session.commit()
-    
-    return jsonify({"message": "Test report created successfully!"}), 201
 
-# 2. Get All Test Reports (GET)
+    return jsonify({'message': 'Test report created successfully!'}), 201
+
+
 @app.route('/test_reports', methods=['GET'])
 def get_all_test_reports():
     test_reports = TestReport.query.all()
-    result = []
-    for report in test_reports:
-        result.append({
-            "id": report.id,
-            "test_id": report.test_id,
-            "parameter": report.parameter,
-            "result": report.result,
-            "remark": report.remark,
-            "created_at": report.created_at
-        })
-    
-    return jsonify(result)
+    return jsonify([
+        {
+            'id': report.id,
+            'test_id': report.test_id,
+            'parameter': report.parameter,
+            'result': report.result,
+            'remark': report.remark,
+            'created_at': report.created_at
+        }
+        for report in test_reports
+    ]), 200
 
-# 3. Get Single Test Report by ID (GET /<id>)
+
 @app.route('/test_reports/<int:id>', methods=['GET'])
 def get_test_report(id):
     test_report = TestReport.query.get(id)
     if not test_report:
-        return jsonify({"message": "Test report not found"}), 404
-    
-    return jsonify({
-        "id": test_report.id,
-        "test_id": test_report.test_id,
-        "parameter": test_report.parameter,
-        "result": test_report.result,
-        "remark": test_report.remark,
-        "created_at": test_report.created_at
-    })
+        return jsonify({'message': 'Test report not found'}), 404
 
-# 4. Update Test Report (PUT)
+    return jsonify({
+        'id': test_report.id,
+        'test_id': test_report.test_id,
+        'parameter': test_report.parameter,
+        'result': test_report.result,
+        'remark': test_report.remark,
+        'created_at': test_report.created_at
+    }), 200
+
+
 @app.route('/test_reports/<int:id>', methods=['PUT'])
 def update_test_report(id):
     test_report = TestReport.query.get(id)
     if not test_report:
-        return jsonify({"message": "Test report not found"}), 404
-    
+        return jsonify({'message': 'Test report not found'}), 404
+
     data = request.get_json()
-    
-    # Update the fields if provided
     test_report.parameter = data.get('parameter', test_report.parameter)
     test_report.result = data.get('result', test_report.result)
     test_report.remark = data.get('remark', test_report.remark)
-    
-    db.session.commit()
-    
-    return jsonify({"message": "Test report updated successfully!"})
 
-# 5. Delete Test Report (DELETE)
+    db.session.commit()
+    return jsonify({'message': 'Test report updated successfully!'}), 200
+
+
 @app.route('/test_reports/<int:id>', methods=['DELETE'])
 def delete_test_report(id):
-    # Find the test report by ID
     test_report = TestReport.query.get(id)
     if not test_report:
-        return jsonify({"message": "Test report not found"}), 404
+        return jsonify({'message': 'Test report not found'}), 404
 
-    # Delete the test report
     db.session.delete(test_report)
     db.session.commit()
 

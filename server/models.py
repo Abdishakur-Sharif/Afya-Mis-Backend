@@ -113,7 +113,7 @@ class Appointment(db.Model, SerializerMixin):
     serialize_rules = ('-patient.appointments', '-doctor.appointments')
 
 # Test Model
-class Test(db.Model, SerializerMixin):  # Table: 'tests'
+class Test(db.Model, SerializerMixin):
     __tablename__ = 'tests'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -124,7 +124,7 @@ class Test(db.Model, SerializerMixin):  # Table: 'tests'
     status = db.Column(Enum('pending', 'completed', name='test_status'), nullable=False, server_default='pending')
     test_results = db.Column(db.String, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False)
-    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)  # Set nullable=True
 
     # Relationships
     patient = db.relationship('Patient', back_populates='tests')
@@ -280,7 +280,7 @@ class Payment(db.Model, SerializerMixin):  # Table: 'payments'
     service = db.Column(db.String, nullable=False)
     amount = db.Column(db.Numeric, nullable=False)
     payment_method = db.Column(db.String, nullable=False)
-    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
 
     # Relationships
     patient = db.relationship('Patient', back_populates='payments')
