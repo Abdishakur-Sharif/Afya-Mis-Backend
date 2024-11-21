@@ -1,2 +1,13 @@
 [packages]
 requests = "*"
+flask = "*"
+sqlalchemy = "*"
+faker = "*"
+flask-restful = "*"
+flask-cors = "*"
+flask-migrate = "*"
+flask-sqlalchemy = "*"
+sqlalchemy-serializer = "*"
+importlib-resources = "*"
+
+[dev-packages]
