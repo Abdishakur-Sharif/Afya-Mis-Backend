@@ -1,5 +1,5 @@
 import socketio
-from models import db, Doctor, Staff, Diagnosis, TestReport,  LabTech, Patient, Payment, Consultation, Prescription, Medicine, Test, TestType, Appointment, ConsultationNotes, DiagnosisNotes
+from server.models import db, Doctor, Staff, Diagnosis, TestReport,  LabTech, Patient, Payment, Consultation, Prescription, Medicine, Test, TestType, Appointment, ConsultationNotes, DiagnosisNotes
 from flask_migrate import Migrate
 from flask import Flask, request , make_response, jsonify, abort
 from flask_restful import Api, Resource
@@ -326,7 +326,6 @@ class DoctorsResource(Resource):
         return make_response(response_data, 201)
 
 # Add the resource routes
-api.add_resource(DoctorsResource, '/doctors', '/doctors/<int:doctor_id>')
 
 # Patients resource for CRUD operations
 class Patients(Resource):
