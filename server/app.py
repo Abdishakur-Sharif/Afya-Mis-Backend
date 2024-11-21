@@ -1,3 +1,4 @@
+import socketio
 from models import db, Doctor, Staff, Diagnosis, TestReport,  LabTech, Patient, Payment, Consultation, Prescription, Medicine, Test, TestType, Appointment, ConsultationNotes, DiagnosisNotes
 from flask_migrate import Migrate
 from flask import Flask, request , make_response, jsonify, abort
@@ -5,6 +6,10 @@ from flask_restful import Api, Resource
 from flask_migrate import Migrate
 from flask_cors import CORS 
 import os
+from flask_socketio import SocketIO, emit
+from faker import Faker
+import random
+
 import base64
 
 from datetime import datetime
@@ -187,21 +192,21 @@ class Consultations(Resource):
 
 class Notes(Resource):
     def get(self, consultationNotes_id=None):
+        patient_id = request.args.get('patient_id')  # Get the patient_id from the request
+        
         if consultationNotes_id:
             # Fetch a single note by ID
-            note = ConsultationNotes.query.filter_by(id=consultationNotes_id).first()
+            note = ConsultationNotes.query.filter_by(id=consultationNotes_id, patient_id=patient_id).first()
             if not note:
-                return make_response({"message": f"Notes with ID {consultationNotes_id} not found"}, 404)
+                return make_response({"message": f"Note with ID {consultationNotes_id} not found for patient {patient_id}"}, 404)
             
-            # Return specified fields
             return make_response(note.to_dict(), 200)
 
-        # Fetch all notes
-        notes = ConsultationNotes.query.all()
+        # Fetch all notes for a specific patient
+        notes = ConsultationNotes.query.filter_by(patient_id=patient_id).all()
         if not notes:
-            return make_response({"message": "No notes found"}, 404)
+            return make_response({"message": "No consultation notes found for the patient"}, 404)
         
-        # Serialize and return all notes
         notes_data = [note.to_dict() for note in notes]
         return make_response(notes_data, 200)
     
@@ -245,6 +250,83 @@ class Notes(Resource):
             return make_response({"message": f"Error deleting note: {str(e)}"}, 500)
 api.add_resource(Consultations, '/consultations', '/consultations/<int:consultation_id>')  
 api.add_resource(Notes, '/consultation_notes', '/consultation_notes/<int:consultationNotes_id>')
+
+
+
+
+class DoctorsResource(Resource):
+    def get(self, doctor_id=None):
+        if doctor_id:
+            # Fetch a specific doctor by ID if provided
+            doctor = Doctor.query.get(doctor_id)
+            if not doctor:
+                return make_response({"message": f"Doctor with ID {doctor_id} not found"}, 404)
+            
+            # Serialize the doctor data
+            doctor_data = {
+                "id": doctor.id,
+                "name": doctor.name,
+                "email": doctor.email,
+                "phone_number": doctor.phone_number,
+                "speciality": doctor.speciality 
+            }
+            
+            return make_response(doctor_data, 200)
+        
+        # Fetch all doctors if no ID is provided
+        doctors = Doctor.query.all()
+        if not doctors:
+            return make_response({"message": "No doctors found"}, 404)
+        
+        # Serialize all doctor data
+        doctors_data = [{
+            "id": doctor.id,
+            "name": doctor.name,
+            "email": doctor.email,
+            "phone_number": doctor.phone_number,
+            "speciality": doctor.speciality 
+        } for doctor in doctors]
+        
+        return make_response(doctors_data, 200)
+
+    def post(self):
+        # Extract data from the request JSON
+        data = request.get_json()
+        
+        # Validate required fields
+        name = data.get("name")
+        email = data.get("email")
+        phone_number = data.get("phone_number")
+        speciality = data.get("speciality") 
+        
+        if not all([name, email, phone_number]):
+            return make_response({"message": "Missing required fields"}, 400)
+        
+        # Create a new Doctor record
+        new_doctor = Doctor(
+            name=name,
+            email=email,
+            phone_number=phone_number,
+            speciality=speciality 
+        )
+        
+        # Add the new record to the session and commit
+        db.session.add(new_doctor)
+        db.session.commit()
+        
+        # Return the created doctor data as a response
+        response_data = {
+            "id": new_doctor.id,
+            "name": new_doctor.name,
+            "email": new_doctor.email,
+            "phone_number": new_doctor.phone_number,
+            "speciality": new_doctor.speciality 
+        }
+        
+        return make_response(response_data, 201)
+
+# Add the resource routes
+api.add_resource(DoctorsResource, '/doctors', '/doctors/<int:doctor_id>')
 
 # Patients resource for CRUD operations
 class Patients(Resource):
@@ -453,7 +535,7 @@ class Diagnoses(Resource):
             "doctor_id": diagnosis.doctor_id,
             "diagnosis_description": diagnosis.diagnosis_description,
             "created_at": diagnosis.created_at.isoformat(),
-            "diagnosis_date": diagnosis.diagnosis_date.isoformat()
+            # "diagnosis_date": diagnosis.diagnosis_date.isoformat()
         } for diagnosis in diagnoses]
         
         return make_response(diagnoses_data, 200)
@@ -467,15 +549,15 @@ class Diagnoses(Resource):
         doctor_id = data.get("doctor_id")
         diagnosis_description = data.get("diagnosis_description")
         
-        if not all([patient_id, doctor_id, diagnosis_description]):
-            return make_response({"message": "Missing required fields"}, 400)
+        # if not all([patient_id, doctor_id, diagnosis_description]):
+            # return make_response({"message": "Missing required fields"}, 400)
         
         # Create a new Diagnosis record
         new_diagnosis = Diagnosis(
             patient_id=patient_id,
             doctor_id=doctor_id,
             diagnosis_description=diagnosis_description,
-            # diagnosis_date=datetime.utcnow(),
+            #   diagnosis_date=datetime.utcnow(),
             created_at=datetime.utcnow()
         )
         
@@ -490,7 +572,7 @@ class Diagnoses(Resource):
             "doctor_id": new_diagnosis.doctor_id,
             "diagnosis_description": new_diagnosis.diagnosis_description,
             "created_at": new_diagnosis.created_at.isoformat(),
-            
+            # "diagnosis_date": new_diagnosis.diagnosis_date.isoformat()
         }
         
         return make_response(response_data, 201)
@@ -528,27 +610,26 @@ api.add_resource(Diagnoses, '/diagnoses', '/diagnoses/<int:diagnosis_id>')
 # DiagnosisNotes Resource
 class DiagnosisNotesResource(Resource):
     def get(self, note_id=None):
-        # Fetch a specific diagnosis note by ID if provided
+        patient_id = request.args.get('patient_id')  # Get the patient_id from the request
+        
         if note_id:
-            note = DiagnosisNotes.query.get(note_id)
+            note = DiagnosisNotes.query.filter_by(id=note_id, patient_id=patient_id).first()
             if not note:
-                return make_response({"message": f"Diagnosis note with ID {note_id} not found"}, 404)
+                return make_response({"message": f"Diagnosis note with ID {note_id} not found for patient {patient_id}"}, 404)
             
-            # Serialize the note data
             note_data = {
                 "id": note.id,
-                "created_at": note.created_at .isoformat(),
+                "created_at": note.created_at.isoformat(),
                 "diagnosis_id": note.diagnosis_id,
                 "note": note.note
             }
             return make_response(note_data, 200)
         
-        # Fetch all diagnosis notes if no ID is provided
-        notes = DiagnosisNotes.query.all()
+        # Fetch all diagnosis notes for a specific patient
+        notes = DiagnosisNotes.query.filter_by(patient_id=patient_id).all()
         if not notes:
-            return make_response({"message": "No diagnosis notes found"}, 404)
+            return make_response({"message": "No diagnosis notes found for the patient"}, 404)
         
-        # Serialize all note data
         notes_data = [{
             "id": note.id,
             "created_at": note.created_at.isoformat(),
@@ -557,6 +638,7 @@ class DiagnosisNotesResource(Resource):
         } for note in notes]
         
         return make_response(notes_data, 200)
+
 
     def post(self):
         # Extract data from the request JSON
@@ -1319,78 +1401,16 @@ def delete_test_report(id):
 
     db.session.delete(test_report)
     db.session.commit()
-    return jsonify({'message': 'Test report deleted successfully!'}), 200
 
-@app.route('/payments', methods=['GET'])
-def get_payments():
-    payments = Payment.query.join(Patient).all()
-    results = [
-        {
-            "id": payment.id,
-            "patient_name": payment.patient.name,  # Access patient's name
-            "service": payment.service,
-            "amount": float(payment.amount),  # Convert Decimal to float
-            "payment_method": payment.payment_method,
-        }
-        for payment in payments
-    ]
-    return jsonify(results), 200
+    # Return a success message
+    return jsonify({"message": "Test report deleted successfully!"}), 200
 
-@app.route('/payments/<int:payment_id>', methods=['GET'])
-def get_payment_by_id(payment_id):
-    # Query the database for the payment with the given ID
-    payment = Payment.query.get(payment_id)
-    
-    # Check if the payment exists
-    if not payment:
-        return jsonify({"error": "Payment not found"}), 404
+socketio = SocketIO(app)
 
-    # Return the payment details including the patient's name
-    result = {
-        "id": payment.id,
-        "patient_name": payment.patient.name,  # Access the patient's name
-        "service": payment.service,
-        "amount": float(payment.amount),  # Convert Decimal to float
-        "payment_method": payment.payment_method,
-    }
-
-    return jsonify(result), 200
-
-@app.route('/payments', methods=['POST'])
-def add_payment():
-    data = request.get_json()
-
-    # Extract required fields
-    patient_id = data.get('patient_id')
-    service = data.get('service')
-    amount = data.get('amount')
-    payment_method = "cash"  # Defaulting payment method to cash
-
-    # Verify patient exists
-    patient = Patient.query.get(patient_id)
-    if not patient:
-        return jsonify({"error": "Patient not found"}), 404
-
-    # Create the payment
-    payment = Payment(
-        patient_id=patient_id,
-        service=service,
-        amount=amount,
-        payment_method=payment_method
-    )
-    db.session.add(payment)
-    db.session.commit()
-
-    return jsonify({
-        "message": "Payment added successfully",
-        "payment": {
-            "id": payment.id,
-            "patient_name": patient.name,  # Include patient's name for convenience
-            "service": payment.service,
-            "amount": float(payment.amount),
-            "payment_method": payment.payment_method
-        }
-    }), 201
+@socketio.on('lab_report_completed')
+def handle_lab_report_completed(data):
+    print("Lab report completed event received:", data)
+    emit('lab_report_completed', data, broadcast=True)
 
 
 if __name__ == '__main__':
