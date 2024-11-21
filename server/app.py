@@ -1411,6 +1411,80 @@ def handle_lab_report_completed(data):
     print("Lab report completed event received:", data)
     emit('lab_report_completed', data, broadcast=True)
 
+@app.route('/payments', methods=['GET'])
+def get_payments():
+    payments = Payment.query.join(Patient).all()
+    results = [
+        {
+            "id": payment.id,
+            "patient_name": payment.patient.name,  # Access patient's name
+            "service": payment.service,
+            "amount": float(payment.amount),  # Convert Decimal to float
+            "payment_method": payment.payment_method,
+        }
+        for payment in payments
+    ]
+    return jsonify(results), 200
+
+@app.route('/payments/<int:payment_id>', methods=['GET'])
+def get_payment_by_id(payment_id):
+    # Query the database for the payment with the given ID
+    payment = Payment.query.get(payment_id)
+    
+    # Check if the payment exists
+    if not payment:
+        return jsonify({"error": "Payment not found"}), 404
+
+    # Return the payment details including the patient's name
+    result = {
+        "id": payment.id,
+        "patient_name": payment.patient.name,  # Access the patient's name
+        "service": payment.service,
+        "amount": float(payment.amount),  # Convert Decimal to float
+        "payment_method": payment.payment_method,
+    }
+
+    return jsonify(result), 200
+
+@app.route('/payments', methods=['POST'])
+def add_payment():
+    data = request.get_json()
+
+    # Extract required fields
+    patient_id = data.get('patient_id')
+    service = data.get('service')
+    amount = data.get('amount')
+    payment_method = data.get('payment_method')  # 'cash' or 'mpesa'
+
+
+    if payment_method not in ['cash', 'mpesa']:
+        return jsonify({"error": "Invalid payment method"}), 400
+
+    # Verify patient exists
+    patient = Patient.query.get(patient_id)
+    if not patient:
+        return jsonify({"error": "Patient not found"}), 404
+
+    # Create the payment
+    payment = Payment(
+        patient_id=patient_id,
+        service=service,
+        amount=amount,
+        payment_method=payment_method
+    )
+    db.session.add(payment)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Payment added successfully",
+        "payment": {
+            "id": payment.id,
+            "patient_name": patient.name,  # Include patient's name for convenience
+            "service": payment.service,
+            "amount": float(payment.amount),
+            "payment_method": payment.payment_method
+        }
+    }), 201
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
